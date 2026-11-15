@@ -26,6 +26,7 @@ class RkaItem extends Model
      * @var array<int, string>
      */
     protected $fillable = [
+        'source_ref_id',
         'rka_header_id',
         'rka_indicator_id',
         'account_id',

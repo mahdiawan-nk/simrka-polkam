@@ -3,7 +3,9 @@
 use App\Exports\AccountTemplateExport;
 use App\Http\Controllers\DatabaseBackupDownloadController;
 use App\Http\Controllers\FundRequestPdfController;
+use App\Services\RkaApprovedTemplateService;
 use Filament\Http\Middleware\Authenticate;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -14,7 +16,7 @@ Route::middleware(['auth'])->group(function () {
         ->withoutMiddleware(['auth'])
         ->middleware([Authenticate::class])
         ->withoutMiddleware(['auth'])
-        ->middleware([\Filament\Http\Middleware\Authenticate::class])
+        ->middleware([Authenticate::class])
         ->name('database.backups.files.download');
     Route::get('/accounts/download-template', function () {
         return Excel::download(
@@ -22,6 +24,13 @@ Route::middleware(['auth'])->group(function () {
             'Template_Import_COA_RKA.xlsx'
         );
     })->name('accounts.download-template');
+
+    Route::get('/admin/rka-headers/import-approved/template', function (Request $request, RkaApprovedTemplateService $templateService) {
+        return $templateService->downloadBlankImportTemplate($request->user());
+    })
+        ->withoutMiddleware(['auth'])
+        ->middleware([Authenticate::class])
+        ->name('rka-headers.import-approved.template');
 });
 Route::get('/', function () {
     return view('welcome');

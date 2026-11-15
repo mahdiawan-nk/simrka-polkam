@@ -384,5 +384,11 @@
                 </div>
             </x-rka-header-account>
         @endif
+
+        <div class="mt-6">
+            @include('filament.resources.rka-headers.components.activity-history', [
+                'logs' => $this->activityLogs,
+            ])
+        </div>
     </div>
 </x-filament-panels::page>

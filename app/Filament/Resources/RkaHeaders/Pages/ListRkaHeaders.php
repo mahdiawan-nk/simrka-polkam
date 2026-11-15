@@ -3,7 +3,9 @@
 namespace App\Filament\Resources\RkaHeaders\Pages;
 
 use App\Filament\Resources\RkaHeaders\RkaHeaderResource;
+use App\Models\RkaHeader;
 use App\Services\Context\Contracts\ContextManagerInterface;
+use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Database\Eloquent\Builder;
@@ -17,10 +19,16 @@ class ListRkaHeaders extends ListRecords
     {
         return [
             CreateAction::make(),
+            Action::make('import_approved_rka')
+                ->label('Import Approved RKA')
+                ->icon('heroicon-o-arrow-up-tray')
+                ->color('success')
+                ->visible(fn (): bool => auth()->user()?->can('importApproved', RkaHeader::class) ?? false)
+                ->url(fn (): string => RkaHeaderResource::getUrl('import-approved')),
         ];
     }
 
-    protected function getTableQuery(): Builder | Relation | null
+    protected function getTableQuery(): Builder|Relation|null
     {
         $query = parent::getTableQuery();
 

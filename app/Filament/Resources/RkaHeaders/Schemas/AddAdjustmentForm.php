@@ -2,13 +2,12 @@
 
 namespace App\Filament\Resources\RkaHeaders\Schemas;
 
-use App\Models\Department;
 use App\Models\Account;
+use App\Models\Department;
 use Filament\Forms\Components\Select;
-use Filament\Schemas\Components\Grid;
-use Filament\Schemas\Components\Section;
-use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Schema;
 
 class AddAdjustmentForm
@@ -37,11 +36,11 @@ class AddAdjustmentForm
                     Select::make('action_type')
                         ->label('Aksi Reviewer')
                         ->options([
-                            'MOVED'             => 'MOVED (Dipindahkan)',
-                            'REJECTED'          => 'REJECTED (Tidak Dianggarkan)',
-                            'SHARED_COST'       => 'SHARED_COST (Dialokasikan ke Unit Lain)',
+                            'MOVED' => 'MOVED (Dipindahkan)',
+                            'REJECTED' => 'REJECTED (Tidak Dianggarkan)',
+                            'SHARED_COST' => 'SHARED_COST (Dialokasikan ke Unit Lain)',
                             'ADDED_BY_REVIEWER' => 'ADDED_BY_REVIEWER (Tambahan Saat Review)',
-                            'REMOVED'           => 'REMOVED (Dihapus)',
+                            'REMOVED' => 'REMOVED (Dihapus)',
                         ])
                         ->required(),
 
@@ -60,13 +59,48 @@ class AddAdjustmentForm
                         ->label('Unit Tujuan / Pengalih')
                         ->options(Department::pluck('name', 'id'))
                         ->searchable()
-                        ->visible(fn(callable $get) => $get('section_type') === 'A'),
+                        ->visible(fn (callable $get) => $get('section_type') === 'A'),
 
                     Select::make('target_unit_id')
                         ->label('Unit Penerima Manfaat')
                         ->options(Department::pluck('name', 'id'))
                         ->searchable()
-                        ->visible(fn(callable $get) => $get('section_type') === 'B'),
+                        ->visible(fn (callable $get) => $get('section_type') === 'B'),
+
+                    TextInput::make('proposed_volume')
+                        ->label('Volume')
+                        ->numeric()
+                        ->minValue(0.01)
+                        ->default(1)
+                        ->required()
+                        ->live()
+                        ->afterStateUpdated(function ($state, callable $set, callable $get): void {
+                            $volume = is_numeric($state) ? (float) $state : 0;
+                            $price = is_numeric($get('unit_price')) ? (float) $get('unit_price') : 0;
+                            if ($price > 0) {
+                                $set('proposed_amount', $volume * $price);
+                            }
+                        }),
+
+                    TextInput::make('unit_symbol')
+                        ->label('Satuan')
+                        ->placeholder('Unit / Paket / Bulan / Keg')
+                        ->maxLength(50)
+                        ->required(),
+
+                    TextInput::make('unit_price')
+                        ->label('Harga Satuan (Rp)')
+                        ->prefix('Rp')
+                        ->numeric()
+                        ->minValue(0)
+                        ->default(0)
+                        ->required()
+                        ->live()
+                        ->afterStateUpdated(function ($state, callable $set, callable $get): void {
+                            $price = is_numeric($state) ? (float) $state : 0;
+                            $volume = is_numeric($get('proposed_volume')) ? (float) $get('proposed_volume') : 0;
+                            $set('proposed_amount', $volume * $price);
+                        }),
 
                     TextInput::make('proposed_amount')
                         ->label('Nominal Usulan (Rp)')

@@ -3,12 +3,15 @@
 namespace App\Services;
 
 use App\Models\Account;
+use App\Models\Department;
 use App\Models\RkaAdjustment;
 use App\Models\RkaHeader;
 use App\Models\RkaIndicator;
 use App\Models\RkaItem;
+use App\Models\RkaLog;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 
 class RkaReviewService
 {
@@ -43,7 +46,19 @@ class RkaReviewService
             strtolower((string) $header->status) === 'submitted'
             && auth()->user()?->hasAnyRole(['keuangan', 'wadir_keuangan', 'direktur'])
         ) {
-            $header->update(['status' => 'IN_REVIEW']);
+            DB::transaction(function () use ($header): void {
+                $oldStatus = $header->status;
+                $header->update(['status' => 'IN_REVIEW']);
+
+                app(RkaActivityLogService::class)->log(
+                    action: RkaLog::ACTION_START_REVIEW,
+                    headerId: $header->id,
+                    subject: $header,
+                    description: 'RKA mulai direview.',
+                    oldValues: ['status' => $oldStatus],
+                    newValues: ['status' => RkaHeader::STATUS_IN_REVIEW],
+                );
+            });
         }
 
         return $header;
@@ -391,6 +406,12 @@ class RkaReviewService
 
             $isTrimmed = ($actionType !== 'APPROVED') || ($approvedTotal < $originalProposedTotal);
 
+            $oldItemSnapshot = [
+                'status' => $item->status,
+                'approved_volume' => $item->approved_volume,
+                'approved_total' => $item->approved_total,
+            ];
+
             $item->update([
                 'approved_volume' => $approvedVolume,
                 'approved_total' => $approvedTotal,
@@ -466,13 +487,17 @@ class RkaReviewService
                         }
                     }
                 } else {
-                    RkaAdjustment::where('rka_item_id', $item->id)
-                        ->where('section_type', 'B')
-                        ->delete();
-
-                    $rejectedStatuses = ['REJECTED', 'REJECTED_WITH_ADJUSTMENT', 'REMOVED', 'BUDGETED_ELSEWHERE'];
-                    $sectionType = in_array($actionType, $rejectedStatuses) ? 'A' : 'B';
+                    $sectionAStatuses = ['REJECTED', 'REJECTED_WITH_ADJUSTMENT', 'REMOVED', 'BUDGETED_ELSEWHERE', 'PENDING'];
+                    $sectionType = in_array($actionType, $sectionAStatuses, true) ? 'A' : 'B';
                     $sectionName = $sectionType === 'A' ? 'Penyesuaian Unit Asal' : 'Penyesuaian Unit Pengelola';
+
+                    // Hapus adjustment lintas header (misal bekas MOVED) dan section lawan pada header ini agar tidak terjadi duplikasi
+                    RkaAdjustment::where('rka_item_id', $item->id)
+                        ->where(function ($query) use ($record, $sectionType): void {
+                            $query->where('rka_header_id', '!=', $record->id)
+                                ->orWhere('section_type', '!=', $sectionType);
+                        })
+                        ->delete();
 
                     RkaAdjustment::updateOrCreate(
                         [
@@ -492,7 +517,7 @@ class RkaReviewService
                             'unit_symbol' => $unitSymbol,
                             'unit_price' => $newUnitPrice,
                             'proposed_amount' => $adjustedProposedAmount,
-                            'approved_amount' => in_array($actionType, $rejectedStatuses) ? 0 : ($data['approved_total'] ?? 0),
+                            'approved_amount' => in_array($actionType, $sectionAStatuses, true) ? 0 : ($data['approved_total'] ?? 0),
                             'notes' => $data['review_notes'],
                             'adjusted_by' => Auth::id(),
                         ]
@@ -504,6 +529,52 @@ class RkaReviewService
 
             if ($indicator = RkaIndicator::find($item->rka_indicator_id)) {
                 $indicator->recalculateMasukanTargetValue();
+            }
+
+            if ($actionType === 'MOVED') {
+                $destinationUnitId = $data['destination_unit_id'] ?? null;
+                $destName = $destinationUnitId ? (Department::whereKey($destinationUnitId)->value('name') ?? 'unit tujuan') : 'unit tujuan';
+
+                app(RkaActivityLogService::class)->log(
+                    action: RkaLog::ACTION_ADJUSTMENT_MOVE,
+                    headerId: $record->id,
+                    subject: $item,
+                    description: "Item \"{$item->description}\" dipindahkan ke {$destName}.",
+                    oldValues: $oldItemSnapshot,
+                    newValues: [
+                        'item_id' => $item->id,
+                        'status' => $actionType,
+                        'destination_unit_id' => $destinationUnitId,
+                    ],
+                );
+
+                if (isset($targetRkaHeader) && $targetRkaHeader) {
+                    $originName = $record->department->name ?? 'unit asal';
+                    app(RkaActivityLogService::class)->log(
+                        action: RkaLog::ACTION_ADJUSTMENT_MOVE,
+                        headerId: $targetRkaHeader->id,
+                        subject: $item,
+                        description: "Menerima pemindahan item \"{$item->description}\" dari {$originName}.",
+                        newValues: [
+                            'rka_item_id' => $item->id,
+                            'source_department_id' => $record->department_id,
+                        ],
+                    );
+                }
+            } else {
+                app(RkaActivityLogService::class)->log(
+                    action: RkaLog::ACTION_REVIEW_UPDATE,
+                    headerId: $record->id,
+                    subject: $item,
+                    description: "Item anggaran \"{$item->description}\" direview ({$actionType}).",
+                    oldValues: $oldItemSnapshot,
+                    newValues: [
+                        'item_id' => $item->id,
+                        'status' => $actionType,
+                        'approved_volume' => $approvedVolume,
+                        'approved_total' => $approvedTotal,
+                    ],
+                );
             }
         });
     }
@@ -520,25 +591,54 @@ class RkaReviewService
                 return false;
             }
 
-            $rkaIndicatorId = $adjustment->rka_indicator_id;
+            $account = Account::with('parent.parent.parent')->find($adjustment->account_id);
 
-            if (! $rkaIndicatorId && $adjustment->account_id) {
-                $account = Account::find($adjustment->account_id);
+            if (! $account) {
+                throw new InvalidArgumentException('Akun rekening penyesuaian tidak ditemukan.');
+            }
 
-                if ($account) {
-                    $parentLevel1 = $account;
-                    while ($parentLevel1->parent && $parentLevel1->level > 1) {
-                        $parentLevel1 = $parentLevel1->parent;
-                    }
+            $parentLevel1 = $account;
+            while ($parentLevel1->parent && $parentLevel1->level > 1) {
+                $parentLevel1 = $parentLevel1->parent;
+            }
 
-                    if ($parentLevel1) {
-                        $indicator = RkaIndicator::where('rka_header_id', $record->id)
-                            ->where('account_id', $parentLevel1->id)
-                            ->first();
+            $codeParts = explode('.', (string) $account->code);
+            $fallbackFormType = count($codeParts) >= 2
+                ? $codeParts[0].'.'.$codeParts[1]
+                : (string) $account->code;
 
-                        $rkaIndicatorId = $indicator?->id;
-                    }
-                }
+            $formType = $parentLevel1->level === 1
+                ? (string) $parentLevel1->code
+                : $fallbackFormType;
+
+            if ($formType === '') {
+                throw new InvalidArgumentException('Kelompok belanja (form_type) tidak dapat ditentukan dari rekening.');
+            }
+
+            $rkaIndicatorId = null;
+
+            if ($adjustment->rka_indicator_id) {
+                $rkaIndicatorId = RkaIndicator::query()
+                    ->where('rka_header_id', $record->id)
+                    ->where('id', $adjustment->rka_indicator_id)
+                    ->value('id');
+            }
+
+            if (! $rkaIndicatorId) {
+                $rkaIndicatorId = RkaIndicator::query()
+                    ->where('rka_header_id', $record->id)
+                    ->where('account_id', $parentLevel1->id)
+                    ->value('id');
+            }
+
+            if (! $rkaIndicatorId) {
+                throw new InvalidArgumentException("Indikator RKA untuk kelompok belanja {$formType} belum tersedia pada RKA tujuan.");
+            }
+
+            $unitSymbol = trim((string) ($adjustment->unit_symbol ?: $adjustment->rkaItem?->unit_symbol ?? ''));
+
+            if ($unitSymbol === '') {
+                throw new InvalidArgumentException('Satuan (unit_symbol) pada data penyesuaian wajib diisi sebelum diimpor.');
             }
 
             $newItem = RkaItem::updateOrCreate(
@@ -549,11 +649,11 @@ class RkaReviewService
                     'rka_header_id' => $record->id,
                     'rka_indicator_id' => $rkaIndicatorId,
                     'account_id' => $adjustment->account_id,
+                    'form_type' => $formType,
                     'description' => $adjustment->description,
                     'proposed_volume' => $adjustment->proposed_volume,
-                    'unit_symbol' => $adjustment->unit_symbol,
+                    'unit_symbol' => $unitSymbol,
                     'unit_price' => $adjustment->unit_price,
-                    'proposed_total' => $adjustment->proposed_amount,
                     'approved_volume' => $adjustment->proposed_volume,
                     'approved_total' => $adjustment->approved_amount,
                     'review_notes' => $adjustment->notes ?? 'Hasil limpahan / adjustment Section B',
@@ -571,6 +671,17 @@ class RkaReviewService
             if ($newItem->rka_indicator_id && ($indicator = RkaIndicator::find($newItem->rka_indicator_id))) {
                 $indicator->recalculateMasukanTargetValue();
             }
+
+            app(RkaActivityLogService::class)->log(
+                action: RkaLog::ACTION_IMPORT_ADJUSTMENT,
+                headerId: $record->id,
+                subject: $adjustment,
+                description: "Penyesuaian \"{$adjustment->description}\" diimpor menjadi item RKA.",
+                newValues: [
+                    'adjustment_id' => $adjustment->id,
+                    'rka_item_id' => $newItem->id,
+                ],
+            );
 
             return true;
         });
@@ -604,6 +715,19 @@ class RkaReviewService
                     $indicator->recalculateMasukanTargetValue();
                 }
             }
+
+            if ($items->isNotEmpty()) {
+                app(RkaActivityLogService::class)->log(
+                    action: RkaLog::ACTION_BULK_APPROVE,
+                    headerId: $record->id,
+                    subject: $record,
+                    description: "{$items->count()} item anggaran disetujui secara massal.",
+                    newValues: [
+                        'item_ids' => $items->pluck('id')->all(),
+                        'count' => $items->count(),
+                    ],
+                );
+            }
         });
     }
 
@@ -626,6 +750,18 @@ class RkaReviewService
             $affectedIndicatorIds = [];
 
             foreach ($items as $item) {
+                $oldItemSnapshot = [
+                    'status' => $item->status,
+                    'approved_volume' => $item->approved_volume,
+                    'approved_total' => $item->approved_total,
+                ];
+
+                $oldItemSnapshot = [
+                    'status' => $item->status,
+                    'approved_volume' => $item->approved_volume,
+                    'approved_total' => $item->approved_total,
+                ];
+
                 $item->update([
                     'approved_volume' => 0,
                     'approved_total' => 0,
@@ -696,6 +832,37 @@ class RkaReviewService
                     $indicator->recalculateMasukanTargetValue();
                 }
             }
+
+            if ($items->isNotEmpty()) {
+                $destName = Department::whereKey($destinationUnitId)->value('name') ?? 'unit tujuan';
+
+                app(RkaActivityLogService::class)->log(
+                    action: RkaLog::ACTION_ADJUSTMENT_MOVE,
+                    headerId: $record->id,
+                    subject: $record,
+                    description: "{$items->count()} item dipindahkan secara massal ke {$destName}.",
+                    newValues: [
+                        'item_ids' => $items->pluck('id')->all(),
+                        'count' => $items->count(),
+                        'destination_unit_id' => $destinationUnitId,
+                    ],
+                );
+
+                if ($targetRkaHeader) {
+                    $originName = $record->department->name ?? 'unit asal';
+                    app(RkaActivityLogService::class)->log(
+                        action: RkaLog::ACTION_ADJUSTMENT_MOVE,
+                        headerId: $targetRkaHeader->id,
+                        subject: $targetRkaHeader,
+                        description: "Menerima pemindahan massal {$items->count()} item dari {$originName}.",
+                        newValues: [
+                            'item_ids' => $items->pluck('id')->all(),
+                            'count' => $items->count(),
+                            'source_department_id' => $record->department_id,
+                        ],
+                    );
+                }
+            }
         });
     }
 
@@ -704,21 +871,64 @@ class RkaReviewService
      */
     public function addAdjustment(RkaHeader $record, ?string $activeIndicatorTab, array $data): RkaAdjustment
     {
-        return RkaAdjustment::create([
-            'rka_header_id' => $record->id,
-            'rka_indicator_id' => $activeIndicatorTab,
-            'section_type' => $data['section_type'],
-            'section_name' => $data['section_type'] === 'A' ? 'Penyesuaian Unit Asal' : 'Penyesuaian Unit Pengelola',
-            'action_type' => $data['action_type'],
-            'account_id' => $data['account_id'],
-            'description' => $data['description'],
-            'destination_unit_id' => $data['destination_unit_id'] ?? null,
-            'target_unit_id' => $data['target_unit_id'] ?? null,
-            'proposed_amount' => $data['proposed_amount'],
-            'approved_amount' => $data['approved_amount'],
-            'notes' => $data['notes'] ?? null,
-            'adjusted_by' => Auth::id(),
-        ]);
+        $unitSymbol = trim((string) ($data['unit_symbol'] ?? ''));
+
+        if ($unitSymbol === '' && ! empty($data['rka_item_id'])) {
+            $unitSymbol = trim((string) (RkaItem::find($data['rka_item_id'])?->unit_symbol ?? ''));
+        }
+
+        if ($unitSymbol === '') {
+            throw new InvalidArgumentException('Satuan (unit_symbol) wajib diisi untuk penyesuaian.');
+        }
+
+        $proposedVolume = isset($data['proposed_volume']) && is_numeric($data['proposed_volume'])
+            ? (float) $data['proposed_volume']
+            : 1.0;
+
+        if ($proposedVolume <= 0) {
+            throw new InvalidArgumentException('Volume penyesuaian harus lebih besar dari 0.');
+        }
+
+        $proposedAmount = (float) ($data['proposed_amount'] ?? 0);
+        $unitPrice = isset($data['unit_price']) && is_numeric($data['unit_price'])
+            ? (float) $data['unit_price']
+            : ($proposedAmount / $proposedVolume);
+
+        return DB::transaction(function () use ($record, $activeIndicatorTab, $data, $proposedVolume, $unitSymbol, $unitPrice, $proposedAmount): RkaAdjustment {
+            $adjustment = RkaAdjustment::create([
+                'rka_header_id' => $record->id,
+                'rka_indicator_id' => $activeIndicatorTab ? (int) $activeIndicatorTab : null,
+                'rka_item_id' => $data['rka_item_id'] ?? null,
+                'section_type' => $data['section_type'],
+                'section_name' => $data['section_type'] === 'A' ? 'Penyesuaian Unit Asal' : 'Penyesuaian Unit Pengelola',
+                'action_type' => $data['action_type'],
+                'account_id' => $data['account_id'],
+                'description' => $data['description'],
+                'destination_unit_id' => $data['destination_unit_id'] ?? null,
+                'target_unit_id' => $data['target_unit_id'] ?? null,
+                'proposed_volume' => $proposedVolume,
+                'unit_symbol' => $unitSymbol,
+                'unit_price' => $unitPrice,
+                'proposed_amount' => $proposedAmount,
+                'approved_amount' => $data['approved_amount'] ?? 0,
+                'notes' => $data['notes'] ?? null,
+                'adjusted_by' => Auth::id(),
+            ]);
+
+            app(RkaActivityLogService::class)->log(
+                action: RkaLog::ACTION_ADD_ADJUSTMENT,
+                headerId: $record->id,
+                subject: $adjustment,
+                description: "Penyesuaian anggaran ({$adjustment->action_type}): \"{$adjustment->description}\" ditambahkan.",
+                newValues: [
+                    'adjustment_id' => $adjustment->id,
+                    'section_type' => $adjustment->section_type,
+                    'action_type' => $adjustment->action_type,
+                ],
+            );
+
+            return $adjustment;
+        });
     }
 
     /**
@@ -726,7 +936,24 @@ class RkaReviewService
      */
     public function deleteAdjustment(int $adjustmentId): void
     {
-        $adj = RkaAdjustment::findOrFail($adjustmentId);
-        $adj->delete();
+        DB::transaction(function () use ($adjustmentId): void {
+            $adj = RkaAdjustment::findOrFail($adjustmentId);
+            $headerId = $adj->rka_header_id;
+            $oldValues = [
+                'adjustment_id' => $adj->id,
+                'action_type' => $adj->action_type,
+                'description' => $adj->description,
+            ];
+
+            $adj->delete();
+
+            app(RkaActivityLogService::class)->log(
+                action: RkaLog::ACTION_DELETE_ADJUSTMENT,
+                headerId: $headerId,
+                subject: $adj,
+                description: "Penyesuaian anggaran \"{$oldValues['description']}\" dihapus.",
+                oldValues: $oldValues,
+            );
+        });
     }
 }

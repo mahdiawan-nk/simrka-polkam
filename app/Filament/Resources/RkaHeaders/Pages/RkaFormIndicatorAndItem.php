@@ -4,12 +4,15 @@ namespace App\Filament\Resources\RkaHeaders\Pages;
 
 use App\Filament\Actions\Rka\RkaActions;
 use App\Filament\Resources\RkaHeaders\RkaHeaderResource;
+use App\Models\RkaLog;
 use App\Services\RkaItemService;
 use Filament\Actions\Action;
 use Filament\Resources\Pages\Concerns\InteractsWithRecord;
 use Filament\Resources\Pages\Page;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Contracts\Support\Htmlable;
 use Livewire\Attributes\Computed;
+use Livewire\WithPagination;
 
 /**
  * Halaman penyusunan formulir Rencana Kerja dan Anggaran (RKA).
@@ -31,6 +34,7 @@ use Livewire\Attributes\Computed;
 class RkaFormIndicatorAndItem extends Page
 {
     use InteractsWithRecord;
+    use WithPagination;
 
     /**
      * Resource Filament yang menaungi halaman penyusunan RKA.
@@ -38,6 +42,10 @@ class RkaFormIndicatorAndItem extends Page
      * @var class-string<RkaHeaderResource>
      */
     protected static string $resource = RkaHeaderResource::class;
+
+    public ?string $logActionFilter = null;
+
+    public ?string $logUserFilter = null;
 
     /**
      * Lokasi template Blade untuk menampilkan halaman penyusunan RKA.
@@ -103,6 +111,75 @@ class RkaFormIndicatorAndItem extends Page
     {
         return app(RkaItemService::class)
             ->calculateBudgetHierarchy($this->activeTabGroup);
+    }
+
+    public function updatedLogActionFilter(): void
+    {
+        $this->resetPage('activityPage');
+    }
+
+    public function updatedLogUserFilter(): void
+    {
+        $this->resetPage('activityPage');
+    }
+
+    /**
+     * Mengambil riwayat aktivitas RKA Header terkait (paginated, terbaru lebih dulu).
+     */
+    #[Computed]
+    public function activityLogs(): LengthAwarePaginator
+    {
+        return RkaLog::query()
+            ->where('rka_header_id', $this->record->id)
+            ->when(
+                filled($this->logActionFilter),
+                fn ($query) => $query->where('action', $this->logActionFilter),
+            )
+            ->when(
+                filled($this->logUserFilter),
+                fn ($query) => $query->where('user_id', (int) $this->logUserFilter),
+            )
+            ->with('user')
+            ->latest('created_at')
+            ->latest('id')
+            ->paginate(10, ['*'], 'activityPage');
+    }
+
+    /**
+     * Opsi filter jenis aksi dari log yang tercatat pada RKA ini.
+     *
+     * @return array<string, string>
+     */
+    #[Computed]
+    public function activityActionOptions(): array
+    {
+        return RkaLog::query()
+            ->where('rka_header_id', $this->record->id)
+            ->select('action')
+            ->distinct()
+            ->orderBy('action')
+            ->get()
+            ->mapWithKeys(fn (RkaLog $log): array => [$log->action => $log->action_label])
+            ->all();
+    }
+
+    /**
+     * Opsi filter pengguna dari log yang tercatat pada RKA ini.
+     *
+     * @return array<int, string>
+     */
+    #[Computed]
+    public function activityUserOptions(): array
+    {
+        return RkaLog::query()
+            ->where('rka_header_id', $this->record->id)
+            ->with('user:id,name')
+            ->select('user_id')
+            ->distinct()
+            ->get()
+            ->filter(fn (RkaLog $log): bool => $log->user !== null)
+            ->mapWithKeys(fn (RkaLog $log): array => [$log->user_id => $log->user->name])
+            ->all();
     }
 
     /**

@@ -7,6 +7,7 @@ use App\Models\Account;
 use App\Models\RkaHeader;
 use App\Models\RkaIndicator;
 use App\Models\RkaItem;
+use App\Models\RkaLog;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -135,10 +136,21 @@ class RkaItemService
                 );
             }
 
+            $oldStatus = $rka->status;
+
             $rka->update([
                 'status' => 'submitted',
                 'is_locked' => true,
             ]);
+
+            app(RkaActivityLogService::class)->log(
+                action: RkaLog::ACTION_SUBMIT_RKA,
+                headerId: $rka->id,
+                subject: $rka,
+                description: 'RKA diajukan oleh pemohon.',
+                oldValues: ['status' => $oldStatus],
+                newValues: ['status' => 'submitted'],
+            );
         });
 
         $record->refresh();
@@ -161,7 +173,7 @@ class RkaItemService
 
             $this->ensureEditable($rka);
 
-            return RkaIndicator::create([
+            $indicator = RkaIndicator::create([
                 'rka_header_id' => $rka->id,
                 'account_id' => $data['account_id'],
                 'program_name' => $data['program_name'],
@@ -169,6 +181,20 @@ class RkaItemService
                 'location' => $data['location'],
                 'indicator_matrix' => $data['indicator_matrix'] ?? [],
             ]);
+
+            app(RkaActivityLogService::class)->log(
+                action: RkaLog::ACTION_ADD_INDICATOR,
+                headerId: $rka->id,
+                subject: $indicator,
+                description: "Program & indikator \"{$indicator->program_name}\" ditambahkan.",
+                newValues: [
+                    'rka_indicator_id' => $indicator->id,
+                    'program_name' => $indicator->program_name,
+                    'activity_name' => $indicator->activity_name,
+                ],
+            );
+
+            return $indicator;
         });
     }
 
@@ -228,6 +254,19 @@ class RkaItemService
             $indicator->recalculateMasukanTargetValue();
             $rka->calculatePaguRka();
 
+            app(RkaActivityLogService::class)->log(
+                action: RkaLog::ACTION_ADD_ITEM,
+                headerId: $rka->id,
+                subject: $item,
+                description: "Item anggaran \"{$item->description}\" ditambahkan.",
+                newValues: [
+                    'item_id' => $item->id,
+                    'account_id' => $item->account_id,
+                    'proposed_volume' => $item->proposed_volume,
+                    'unit_price' => $item->unit_price,
+                ],
+            );
+
             return $item;
         });
     }
@@ -274,6 +313,14 @@ class RkaItemService
                 );
             }
 
+            $oldValues = [
+                'account_id' => $item->account_id,
+                'description' => $item->description,
+                'proposed_volume' => $item->proposed_volume,
+                'unit_symbol' => $item->unit_symbol,
+                'unit_price' => $item->unit_price,
+            ];
+
             $item->update([
                 'account_id' => $account->id,
                 'description' => $data['description'],
@@ -284,6 +331,22 @@ class RkaItemService
 
             $indicator->recalculateMasukanTargetValue();
             $rka->calculatePaguRka();
+
+            app(RkaActivityLogService::class)->log(
+                action: RkaLog::ACTION_UPDATE_ITEM,
+                headerId: $rka->id,
+                subject: $item,
+                description: "Item anggaran \"{$data['description']}\" diperbarui.",
+                oldValues: $oldValues,
+                newValues: [
+                    'item_id' => $item->id,
+                    'account_id' => $account->id,
+                    'description' => $data['description'],
+                    'proposed_volume' => $data['proposed_volume'],
+                    'unit_symbol' => $data['unit_symbol'],
+                    'unit_price' => $data['unit_price'],
+                ],
+            );
 
             return $item->refresh();
         });
@@ -314,11 +377,26 @@ class RkaItemService
                 ->where('rka_header_id', $rka->id)
                 ->find($item->rka_indicator_id);
 
+            $oldValues = [
+                'item_id' => $item->id,
+                'description' => $item->description,
+                'proposed_volume' => $item->proposed_volume,
+                'unit_price' => $item->unit_price,
+            ];
+
             $item->delete();
 
             $indicator?->recalculateMasukanTargetValue();
 
             $rka->calculatePaguRka();
+
+            app(RkaActivityLogService::class)->log(
+                action: RkaLog::ACTION_DELETE_ITEM,
+                headerId: $rka->id,
+                subject: $item,
+                description: "Item anggaran \"{$oldValues['description']}\" dihapus.",
+                oldValues: $oldValues,
+            );
         });
     }
 
@@ -354,6 +432,16 @@ class RkaItemService
 
             $rka->calculatePaguRka();
 
+            if ($deletedCount > 0) {
+                app(RkaActivityLogService::class)->log(
+                    action: RkaLog::ACTION_CLEAR_ITEMS,
+                    headerId: $rka->id,
+                    subject: $rka,
+                    description: "Seluruh item anggaran ({$deletedCount} item) dihapus.",
+                    newValues: ['deleted_count' => $deletedCount],
+                );
+            }
+
             return $deletedCount;
         });
     }
@@ -379,15 +467,25 @@ class RkaItemService
                 ->findOrFail($indicatorId);
         }
 
-        Excel::import(
-            new RkaImportFormatExcel(
-                $rka->id,
-                $indicatorId,
-            ),
-            $file->getRealPath(),
-        );
+        DB::transaction(function () use ($rka, $file, $indicatorId): void {
+            Excel::import(
+                new RkaImportFormatExcel(
+                    $rka->id,
+                    $indicatorId,
+                ),
+                $file->getRealPath(),
+            );
 
-        $rka->calculatePaguRka();
+            $rka->calculatePaguRka();
+
+            app(RkaActivityLogService::class)->log(
+                action: RkaLog::ACTION_IMPORT_ITEMS,
+                headerId: $rka->id,
+                subject: $rka,
+                description: 'Item anggaran diimpor melalui Excel.',
+                newValues: ['indicator_id' => $indicatorId],
+            );
+        });
 
         $record->refresh();
     }

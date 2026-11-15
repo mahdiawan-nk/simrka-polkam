@@ -2,18 +2,23 @@
 
 namespace App\Filament\Resources\RkaHeaders\Tables;
 
+use App\Filament\Resources\RkaHeaders\RkaHeaderResource;
+use App\Models\RkaHeader;
+use App\Models\RkaUnlockRequest;
+use App\Services\ApprovedRkaImport\RkaUnlockRequestService;
+use App\Services\RkaApprovalService;
+use App\Services\RkaApprovedTemplateService;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
-use Filament\Actions\Action;
+use Filament\Forms\Components\Textarea;
+use Filament\Notifications\Notification;
+use Filament\Support\Colors\Color;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Filament\Notifications\Notification;
-use Filament\Support\Colors\Color;
-use App\Filament\Resources\RkaHeaders\RkaHeaderResource;
-use App\Services\RkaApprovalService;
-use App\Models\RkaHeader;
+use Throwable;
 
 class RkaHeadersTable
 {
@@ -32,7 +37,7 @@ class RkaHeadersTable
                 TextColumn::make('schedule.fiscal_year')
                     ->label('Jadwal RKA')
                     ->searchable()
-                    ->description(fn($record) => $record->schedule?->phase_name . '-' . $record->schedule->period_range)
+                    ->description(fn ($record) => $record->schedule?->phase_name.'-'.$record->schedule->period_range)
                     ->sortable()
                     ->placeholder('-'),
 
@@ -46,14 +51,14 @@ class RkaHeadersTable
                 TextColumn::make('status')
                     ->label('Status')
                     ->badge()
-                    ->color(fn(string $state): string => match (strtolower($state)) {
+                    ->color(fn (string $state): string => match (strtolower($state)) {
                         'draft' => 'gray',
                         'submitted' => 'warning',
                         'approved' => 'success',
                         'rejected' => 'danger',
                         default => 'info',
                     })
-                    ->formatStateUsing(fn(string $state): string => strtoupper($state))
+                    ->formatStateUsing(fn (string $state): string => strtoupper($state))
                     ->searchable()
                     ->sortable(),
 
@@ -98,11 +103,10 @@ class RkaHeadersTable
                     ->icon('heroicon-o-list-bullet')
                     ->color('info')
                     ->visible(
-                        fn($record): bool =>
-                        strtoupper($record->rka_status ?? $record->status ?? '') === RkaHeader::STATUS_DRAFT &&
+                        fn ($record): bool => strtoupper($record->rka_status ?? $record->status ?? '') === RkaHeader::STATUS_DRAFT &&
                             auth()->user()->hasRole('pemohon')
                     )
-                    ->url(fn($record): string => RkaHeaderResource::getUrl('form-indicator-and-item', ['record' => $record])),
+                    ->url(fn ($record): string => RkaHeaderResource::getUrl('form-indicator-and-item', ['record' => $record])),
 
                 /*
 |--------------------------------------------------------------------------
@@ -113,17 +117,16 @@ class RkaHeadersTable
                     ->label('Lihat RKA')
                     ->icon('heroicon-o-eye')
                     ->color('info')
-                    ->visible(
-                        fn($record): bool =>
-                        in_array(strtoupper($record->rka_status ?? $record->status ?? ''), [
-                            RkaHeader::STATUS_SUBMITTED,
-                            RkaHeader::STATUS_IN_REVIEW,
-                            RkaHeader::STATUS_IN_APPROVED,
-                            RkaHeader::STATUS_REVISION_REQUIRED,
-                            RkaHeader::STATUS_APPROVED,
-                        ]) &&
-                            auth()->user()->hasRole('pemohon')
-                    )
+                    // ->visible(
+                    //     fn ($record): bool => in_array(strtoupper($record->rka_status ?? $record->status ?? ''), [
+                    //         RkaHeader::STATUS_SUBMITTED,
+                    //         RkaHeader::STATUS_IN_REVIEW,
+                    //         RkaHeader::STATUS_IN_APPROVED,
+                    //         RkaHeader::STATUS_REVISION_REQUIRED,
+                    //         RkaHeader::STATUS_APPROVED,
+                    //     ]) &&
+                    //         auth()->user()->hasRole('pemohon')
+                    // )
                     ->url(function ($record): string {
                         $status = strtoupper($record->rka_status ?? $record->status ?? '');
 
@@ -144,8 +147,7 @@ class RkaHeadersTable
                     ->icon('heroicon-o-paper-airplane')
                     ->color('success')
                     ->visible(
-                        fn($record): bool =>
-                        strtoupper($record->rka_status ?? $record->status ?? '') === RkaHeader::STATUS_DRAFT &&
+                        fn ($record): bool => strtoupper($record->rka_status ?? $record->status ?? '') === RkaHeader::STATUS_DRAFT &&
                             auth()->user()->hasRole('pemohon') &&
                             $record->pagu_budget > 0
                     )
@@ -214,7 +216,121 @@ class RkaHeadersTable
                         // Aktif HANYA untuk Direktur saat status IN_APPROVED
                         return $user->hasRole('direktur') && $status === RkaHeader::STATUS_IN_APPROVED;
                     })
-                    ->url(fn($record): string => RkaHeaderResource::getUrl('review', ['record' => $record]))
+                    ->url(fn ($record): string => RkaHeaderResource::getUrl('review', ['record' => $record])),
+
+                /*
+                |--------------------------------------------------------------------------
+                | 6. Action: Export Approved RKA Excel (Khusus Status APPROVED)
+                |--------------------------------------------------------------------------
+                */
+                Action::make('export_approved_excel')
+                    ->label('Export Excel')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('success')
+                    ->visible(function ($record): bool {
+                        $user = auth()->user();
+                        $status = strtoupper((string) ($record->rka_status ?? $record->status ?? ''));
+
+                        return $status === RkaHeader::STATUS_APPROVED
+                            && $user !== null
+                            && $user->can('view', $record);
+                    })
+                    ->action(function ($record, RkaApprovedTemplateService $exportService) {
+                        try {
+                            return $exportService->export($record, auth()->user());
+                        } catch (Throwable $e) {
+                            Notification::make()
+                                ->title('Export Excel Gagal')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+
+                            return null;
+                        }
+                    }),
+
+                Action::make('request_unlock')
+                    ->label('Ajukan Buka Kunci')
+                    ->icon('heroicon-o-lock-open')
+                    ->color('warning')
+                    ->visible(function ($record): bool {
+                        $user = auth()->user();
+                        if ($user === null || ! $user->can('requestUnlock', $record)) {
+                            return false;
+                        }
+
+                        return ! $record->unlockRequests()
+                            ->whereIn('status', [RkaUnlockRequest::STATUS_PENDING, RkaUnlockRequest::STATUS_APPROVED])
+                            ->where(function ($query): void {
+                                $query->where('status', RkaUnlockRequest::STATUS_PENDING)
+                                    ->orWhere(function ($q): void {
+                                        $q->where('status', RkaUnlockRequest::STATUS_APPROVED)
+                                            ->whereNull('reimport_used_at')
+                                            ->where(function ($exp): void {
+                                                $exp->whereNull('reimport_expires_at')
+                                                    ->orWhere('reimport_expires_at', '>', now());
+                                            });
+                                    });
+                            })
+                            ->exists();
+                    })
+                    ->form([
+                        Textarea::make('reason')
+                            ->label('Alasan Permintaan Pembukaan Kunci')
+                            ->required()
+                            ->rows(3),
+                        Textarea::make('error_description')
+                            ->label('Deskripsi Kesalahan Data / Item (Opsional)')
+                            ->rows(3),
+                    ])
+                    ->action(function ($record, array $data, RkaUnlockRequestService $unlockService): void {
+                        try {
+                            $unlockService->submitRequest(
+                                header: $record,
+                                user: auth()->user(),
+                                reason: (string) ($data['reason'] ?? ''),
+                                errorDescription: $data['error_description'] ?? null,
+                            );
+
+                            Notification::make()
+                                ->title('Permintaan Pembukaan Kunci Terkirim')
+                                ->body('Menunggu persetujuan tim keuangan sebelum Anda dapat menjalankan import ulang.')
+                                ->success()
+                                ->send();
+                        } catch (Throwable $e) {
+                            Notification::make()
+                                ->title('Gagal Mengajukan Buka Kunci')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
+
+                Action::make('reimport_approved_rka')
+                    ->label('Import Ulang Approved')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('primary')
+                    ->visible(function ($record): bool {
+                        $user = auth()->user();
+                        if ($user === null || ! $user->can('importApproved', RkaHeader::class)) {
+                            return false;
+                        }
+
+                        if (! $user->hasRole('super_admin') && ! $user->departments()->where('departments.id', $record->department_id)->exists()) {
+                            return false;
+                        }
+
+                        $active = $record->unlockRequests()
+                            ->where('status', RkaUnlockRequest::STATUS_APPROVED)
+                            ->whereNull('reimport_used_at')
+                            ->latest('id')
+                            ->first();
+
+                        return $active !== null && $active->isReimportActive();
+                    })
+                    ->url(fn ($record): string => RkaHeaderResource::getUrl('import-approved', [
+                        'reimport' => $record->id,
+                    ])),
 
                 // EditAction::make()
                 // ->label('Edit')

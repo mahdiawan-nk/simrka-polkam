@@ -153,6 +153,22 @@ class RkaHeader extends Model
         return $this->hasMany(RkaLog::class, 'rka_header_id');
     }
 
+    /**
+     * Relasi ke riwayat batch import RKA Approved.
+     */
+    public function approvedImportBatches(): HasMany
+    {
+        return $this->hasMany(RkaApprovedImportBatch::class, 'rka_header_id');
+    }
+
+    /**
+     * Relasi ke riwayat permintaan pembukaan kunci RKA.
+     */
+    public function unlockRequests(): HasMany
+    {
+        return $this->hasMany(RkaUnlockRequest::class, 'rka_header_id');
+    }
+
     /* =========================================================================
      | LOCAL SCOPES
      | ========================================================================= */

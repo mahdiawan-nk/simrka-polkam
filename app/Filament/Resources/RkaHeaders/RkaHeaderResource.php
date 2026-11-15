@@ -4,6 +4,7 @@ namespace App\Filament\Resources\RkaHeaders;
 
 use App\Filament\Resources\RkaHeaders\Pages\CreateRkaHeader;
 use App\Filament\Resources\RkaHeaders\Pages\EditRkaHeader;
+use App\Filament\Resources\RkaHeaders\Pages\ImportApprovedRkaPage;
 use App\Filament\Resources\RkaHeaders\Pages\ListRkaHeaders;
 use App\Filament\Resources\RkaHeaders\Pages\ReviewRkaPage;
 use App\Filament\Resources\RkaHeaders\Pages\RkaFormIndicatorAndItem;
@@ -49,6 +50,7 @@ class RkaHeaderResource extends Resource
         return [
             'index' => ListRkaHeaders::route('/'),
             'create' => CreateRkaHeader::route('/create'),
+            'import-approved' => ImportApprovedRkaPage::route('/import-approved'),
             'edit' => EditRkaHeader::route('/{record}/edit'),
             'form-indicator-and-item' => RkaFormIndicatorAndItem::route('/{record}/form-indicator-and-item'),
             'view' => RkaFormIndicatorAndItem::route('/{record}/view'),

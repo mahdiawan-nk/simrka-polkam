@@ -29,12 +29,44 @@ class RkaHeaderPolicy
 
     public function update(AuthUser $authUser, RkaHeader $rkaHeader): bool
     {
+        if ($rkaHeader->is_locked && ! $authUser->hasRole('super_admin')) {
+            return false;
+        }
+
         return $authUser->can('Update:RkaHeader') && $this->canAccessRecord($authUser, $rkaHeader);
     }
 
     public function delete(AuthUser $authUser, RkaHeader $rkaHeader): bool
     {
+        if ($rkaHeader->is_locked && ! $authUser->hasRole('super_admin')) {
+            return false;
+        }
+
         return $authUser->can('Delete:RkaHeader') && $this->canAccessRecord($authUser, $rkaHeader);
+    }
+
+    public function importApproved(AuthUser $authUser, ?RkaHeader $rkaHeader = null): bool
+    {
+        if (! $authUser->hasAnyRole(['pemohon', 'super_admin'])) {
+            return false;
+        }
+
+        if ($rkaHeader !== null) {
+            return $this->canAccessRecord($authUser, $rkaHeader);
+        }
+
+        return true;
+    }
+
+    public function requestUnlock(AuthUser $authUser, RkaHeader $rkaHeader): bool
+    {
+        if (! $authUser->hasRole('pemohon')) {
+            return false;
+        }
+
+        return $this->canAccessRecord($authUser, $rkaHeader)
+            && strtoupper((string) $rkaHeader->status) === RkaHeader::STATUS_APPROVED
+            && (bool) $rkaHeader->is_locked;
     }
 
     public function deleteAny(AuthUser $authUser): bool

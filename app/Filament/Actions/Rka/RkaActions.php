@@ -10,15 +10,39 @@ use App\Imports\RkaItemsImport;
 use App\Models\RkaHeader;
 use App\Models\RkaIndicator;
 use App\Models\RkaItem;
+use App\Models\RkaLog;
+use App\Services\RkaActivityLogService;
 use App\Services\RkaApprovalService;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Schema;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
 
 class RkaActions
 {
+    protected static function isEditable(RkaHeader $record): bool
+    {
+        if ($record->is_locked) {
+            return false;
+        }
+
+        return strtoupper((string) $record->status) === RkaHeader::STATUS_DRAFT;
+    }
+
+    /**
+     * @throws AuthorizationException
+     */
+    protected static function ensureEditable(RkaHeader $record): void
+    {
+        $fresh = $record->fresh() ?? $record;
+
+        if (! self::isEditable($fresh)) {
+            throw new AuthorizationException('RKA dalam status terkunci atau sudah disetujui dan tidak dapat diubah.');
+        }
+    }
+
     /**
      * Mengajukan RKA dan mengunci data.
      */
@@ -68,18 +92,36 @@ class RkaActions
             ->modalHeading('Tambah Program & Indikator Kinerja RKA')
             ->slideOver()
             ->modalWidth('4xl')
+            ->hidden(fn (): bool => ! self::isEditable($page->record))
             ->form(
                 fn (Schema $schema): Schema => AddProgramForm::configure($schema)
             )
             ->action(function (array $data) use ($page): void {
-                $indicator = RkaIndicator::create([
-                    'rka_header_id' => $page->record->id,
-                    'account_id' => $data['account_id'],
-                    'program_name' => $data['program_name'],
-                    'activity_name' => $data['activity_name'],
-                    'location' => $data['location'],
-                    'indicator_matrix' => $data['indicator_matrix'] ?? [],
-                ]);
+                self::ensureEditable($page->record);
+                $indicator = DB::transaction(function () use ($data, $page): RkaIndicator {
+                    $indicator = RkaIndicator::create([
+                        'rka_header_id' => $page->record->id,
+                        'account_id' => $data['account_id'],
+                        'program_name' => $data['program_name'],
+                        'activity_name' => $data['activity_name'],
+                        'location' => $data['location'],
+                        'indicator_matrix' => $data['indicator_matrix'] ?? [],
+                    ]);
+
+                    app(RkaActivityLogService::class)->log(
+                        action: RkaLog::ACTION_ADD_INDICATOR,
+                        headerId: $page->record->id,
+                        subject: $indicator,
+                        description: "Program & indikator \"{$indicator->program_name}\" ditambahkan.",
+                        newValues: [
+                            'rka_indicator_id' => $indicator->id,
+                            'program_name' => $indicator->program_name,
+                            'activity_name' => $indicator->activity_name,
+                        ],
+                    );
+
+                    return $indicator;
+                });
 
                 $page->activeTabGroup = (string) $indicator->id;
                 $page->record->refresh();
@@ -102,6 +144,7 @@ class RkaActions
             ->color('success')
             ->modalHeading('Tambah Item Belanja RKA')
             ->modalWidth('2xl')
+            ->hidden(fn (): bool => ! self::isEditable($page->record))
             ->form(
                 fn (Schema $schema): Schema => AddItemForm::configure(
                     $schema,
@@ -109,24 +152,41 @@ class RkaActions
                 )
             )
             ->action(function (array $data) use ($page): void {
-                $indicator = RkaIndicator::query()
-                    ->where('rka_header_id', $page->record->id)
-                    ->findOrFail($page->activeTabGroup);
+                self::ensureEditable($page->record);
+                DB::transaction(function () use ($data, $page): void {
+                    $indicator = RkaIndicator::query()
+                        ->where('rka_header_id', $page->record->id)
+                        ->findOrFail($page->activeTabGroup);
 
-                RkaItem::create([
-                    'rka_header_id' => $page->record->id,
-                    'rka_indicator_id' => $indicator->id,
-                    'account_id' => $data['account_id'],
-                    'form_type' => $data['form_type'],
-                    'description' => $data['description'],
-                    'proposed_volume' => $data['proposed_volume'],
-                    'unit_symbol' => $data['unit_symbol'],
-                    'unit_price' => $data['unit_price'],
-                    'status' => RkaItem::STATUS_PENDING,
-                ]);
+                    $item = RkaItem::create([
+                        'rka_header_id' => $page->record->id,
+                        'rka_indicator_id' => $indicator->id,
+                        'account_id' => $data['account_id'],
+                        'form_type' => $data['form_type'],
+                        'description' => $data['description'],
+                        'proposed_volume' => $data['proposed_volume'],
+                        'unit_symbol' => $data['unit_symbol'],
+                        'unit_price' => $data['unit_price'],
+                        'status' => RkaItem::STATUS_PENDING,
+                    ]);
 
-                $indicator->recalculateMasukanTargetValue();
-                $page->record->calculatePaguRka();
+                    $indicator->recalculateMasukanTargetValue();
+                    $page->record->calculatePaguRka();
+
+                    app(RkaActivityLogService::class)->log(
+                        action: RkaLog::ACTION_ADD_ITEM,
+                        headerId: $page->record->id,
+                        subject: $item,
+                        description: "Item anggaran \"{$item->description}\" ditambahkan.",
+                        newValues: [
+                            'item_id' => $item->id,
+                            'account_id' => $item->account_id,
+                            'proposed_volume' => $item->proposed_volume,
+                            'unit_price' => $item->unit_price,
+                        ],
+                    );
+                });
+
                 $page->record->refresh();
 
                 Notification::make()
@@ -148,6 +208,7 @@ class RkaActions
             ->color('warning')
             ->modalHeading('Edit Item Belanja RKA')
             ->modalWidth('2xl')
+            ->hidden(fn (): bool => ! self::isEditable($page->record))
             ->fillForm(
                 fn (array $arguments): array => RkaItem::query()
                     ->where('rka_header_id', $page->record->id)
@@ -158,21 +219,48 @@ class RkaActions
                 fn (Schema $schema): Schema => EditItemForm::configure($schema)
             )
             ->action(function (array $data, array $arguments) use ($page): void {
-                $item = RkaItem::query()
-                    ->where('rka_header_id', $page->record->id)
-                    ->findOrFail($arguments['item_id']);
+                self::ensureEditable($page->record);
+                DB::transaction(function () use ($data, $arguments, $page): void {
+                    $item = RkaItem::query()
+                        ->where('rka_header_id', $page->record->id)
+                        ->findOrFail($arguments['item_id']);
 
-                $item->update([
-                    'account_id' => $data['account_id'],
-                    'description' => $data['description'],
-                    'proposed_volume' => $data['proposed_volume'],
-                    'unit_symbol' => $data['unit_symbol'],
-                    'unit_price' => $data['unit_price'],
-                ]);
+                    $oldValues = [
+                        'account_id' => $item->account_id,
+                        'description' => $item->description,
+                        'proposed_volume' => $item->proposed_volume,
+                        'unit_symbol' => $item->unit_symbol,
+                        'unit_price' => $item->unit_price,
+                    ];
 
-                $item->indicator?->recalculateMasukanTargetValue();
+                    $item->update([
+                        'account_id' => $data['account_id'],
+                        'description' => $data['description'],
+                        'proposed_volume' => $data['proposed_volume'],
+                        'unit_symbol' => $data['unit_symbol'],
+                        'unit_price' => $data['unit_price'],
+                    ]);
 
-                $page->record->calculatePaguRka();
+                    $item->indicator?->recalculateMasukanTargetValue();
+                    $page->record->calculatePaguRka();
+
+                    app(RkaActivityLogService::class)->log(
+                        action: RkaLog::ACTION_UPDATE_ITEM,
+                        headerId: $page->record->id,
+                        subject: $item,
+                        description: "Item anggaran \"{$data['description']}\" diperbarui.",
+                        oldValues: $oldValues,
+                        newValues: [
+                            'item_id' => $item->id,
+                            'account_id' => $data['account_id'],
+                            'description' => $data['description'],
+                            'proposed_volume' => $data['proposed_volume'],
+                            'unit_symbol' => $data['unit_symbol'],
+                            'unit_price' => $data['unit_price'],
+                        ],
+                    );
+                });
+
                 $page->record->refresh();
 
                 Notification::make()
@@ -191,23 +279,39 @@ class RkaActions
             ->label('Import Item dari Excel')
             ->icon('heroicon-o-document-arrow-up')
             ->color('success')
+            ->hidden(fn (): bool => ! self::isEditable($page->record))
             ->form(
                 fn (Schema $schema): Schema => ImportExcelForm::configure($schema)
             )
             ->action(function (array $data) use ($page): void {
+                self::ensureEditable($page->record);
                 $indicatorId = $data['import_scope'] === 'active_tab'
                     ? (int) $page->activeTabGroup
                     : null;
 
-                Excel::import(
-                    new RkaItemsImport(
-                        $page->record->id,
-                        $indicatorId,
-                    ),
-                    $data['attachment']->getRealPath(),
-                );
+                DB::transaction(function () use ($data, $indicatorId, $page): void {
+                    Excel::import(
+                        new RkaItemsImport(
+                            $page->record->id,
+                            $indicatorId,
+                        ),
+                        $data['attachment']->getRealPath(),
+                    );
 
-                $page->record->calculatePaguRka();
+                    $page->record->calculatePaguRka();
+
+                    app(RkaActivityLogService::class)->log(
+                        action: RkaLog::ACTION_IMPORT_ITEMS,
+                        headerId: $page->record->id,
+                        subject: $page->record,
+                        description: 'Item anggaran diimpor melalui Excel.',
+                        newValues: [
+                            'import_scope' => $data['import_scope'],
+                            'indicator_id' => $indicatorId,
+                        ],
+                    );
+                });
+
                 $page->record->refresh();
 
                 Notification::make()
@@ -238,22 +342,41 @@ class RkaActions
             ->modalDescription(
                 'Apakah Anda yakin ingin menghapus item belanja ini? Tindakan ini tidak dapat dibatalkan.'
             )
+            ->hidden(fn (): bool => ! self::isEditable($page->record))
             ->modalSubmitActionLabel('Ya, Hapus')
             ->modalCancelActionLabel('Batal')
             ->action(function (array $arguments) use ($page): void {
-                $item = RkaItem::query()
-                    ->where('rka_header_id', $page->record->id)
-                    ->findOrFail($arguments['item_id']);
+                self::ensureEditable($page->record);
+                DB::transaction(function () use ($arguments, $page): void {
+                    $item = RkaItem::query()
+                        ->where('rka_header_id', $page->record->id)
+                        ->findOrFail($arguments['item_id']);
 
-                $indicatorId = $item->rka_indicator_id;
+                    $indicatorId = $item->rka_indicator_id;
+                    $oldValues = [
+                        'item_id' => $item->id,
+                        'description' => $item->description,
+                        'proposed_volume' => $item->proposed_volume,
+                        'unit_price' => $item->unit_price,
+                    ];
 
-                $item->delete();
+                    $item->delete();
 
-                if ($indicator = RkaIndicator::find($indicatorId)) {
-                    $indicator->recalculateMasukanTargetValue();
-                }
+                    if ($indicator = RkaIndicator::find($indicatorId)) {
+                        $indicator->recalculateMasukanTargetValue();
+                    }
 
-                $page->record->calculatePaguRka();
+                    $page->record->calculatePaguRka();
+
+                    app(RkaActivityLogService::class)->log(
+                        action: RkaLog::ACTION_DELETE_ITEM,
+                        headerId: $page->record->id,
+                        subject: $item,
+                        description: "Item anggaran \"{$oldValues['description']}\" dihapus.",
+                        oldValues: $oldValues,
+                    );
+                });
+
                 $page->record->refresh();
 
                 Notification::make()
@@ -277,9 +400,11 @@ class RkaActions
             ->modalDescription(
                 'Apakah Anda yakin ingin menghapus SEMUA item belanja pada RKA ini? Tindakan ini tidak dapat dibatalkan.'
             )
+            ->hidden(fn (): bool => ! self::isEditable($page->record))
             ->modalSubmitActionLabel('Ya, Hapus Semua')
             ->modalCancelActionLabel('Batal')
             ->action(function () use ($page): void {
+                self::ensureEditable($page->record);
                 DB::transaction(function () use ($page): void {
                     $record = RkaHeader::query()
                         ->lockForUpdate()
@@ -291,7 +416,7 @@ class RkaActions
                         ->distinct()
                         ->pluck('rka_indicator_id');
 
-                    RkaItem::query()
+                    $deletedCount = RkaItem::query()
                         ->where('rka_header_id', $record->id)
                         ->delete();
 
@@ -301,6 +426,16 @@ class RkaActions
                     }
 
                     $record->calculatePaguRka();
+
+                    if ($deletedCount > 0) {
+                        app(RkaActivityLogService::class)->log(
+                            action: RkaLog::ACTION_CLEAR_ITEMS,
+                            headerId: $record->id,
+                            subject: $record,
+                            description: "Seluruh item anggaran ({$deletedCount} item) dihapus.",
+                            newValues: ['deleted_count' => $deletedCount],
+                        );
+                    }
                 });
 
                 $page->record->refresh();

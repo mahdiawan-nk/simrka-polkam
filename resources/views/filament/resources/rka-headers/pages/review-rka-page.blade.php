@@ -506,6 +506,32 @@
                                     class="absolute inset-x-0 top-0 h-0.5 rounded-t-lg bg-blue-600 dark:bg-blue-400"></span>
                             @endif
                         </button>
+
+                        {{-- Riwayat Aktivitas --}}
+                        <button type="button" role="tab"
+                            aria-selected="{{ $activeTab === 'riwayat' ? 'true' : 'false' }}"
+                            wire:click="setActiveTab('riwayat')" @class([
+                                'relative inline-flex min-h-11 items-center gap-2 whitespace-nowrap',
+                                'border border-b-0 px-4 py-3 text-sm transition-colors',
+                                'rounded-t-lg focus:outline-none focus-visible:ring-2',
+                                'focus-visible:ring-inset focus-visible:ring-blue-500',
+                                'font-semibold' => $activeTab === 'riwayat',
+                                'border-gray-200 bg-white text-blue-700',
+                                'dark:border-gray-700 dark:bg-gray-900 dark:text-blue-400' =>
+                                    $activeTab === 'riwayat',
+                                'border-transparent bg-gray-50 text-gray-600',
+                                'hover:bg-gray-100 hover:text-gray-900',
+                                'dark:bg-gray-800/50 dark:text-gray-400',
+                                'dark:hover:bg-gray-800 dark:hover:text-gray-100' => $activeTab !== 'riwayat',
+                            ])>
+                            <x-heroicon-o-clock class="h-4 w-4 shrink-0" />
+                            <span>Riwayat Aktivitas</span>
+
+                            @if ($activeTab === 'riwayat')
+                                <span
+                                    class="absolute inset-x-0 top-0 h-0.5 rounded-t-lg bg-blue-600 dark:bg-blue-400"></span>
+                            @endif
+                        </button>
                     </nav>
                 </div>
 
@@ -824,6 +850,15 @@
                     @include('filament.resources.rka-headers.components.budget-review', [
                         'summary' => $this->summaryAccountHierarchy,
                         'kontrol' => $this->kontrolPaguData,
+                    ])
+                @endif
+
+                <!-- ================================================================= -->
+                <!-- TAB 5: RIWAYAT AKTIVITAS RKA -->
+                <!-- ================================================================= -->
+                @if ($activeTab === 'riwayat')
+                    @include('filament.resources.rka-headers.components.activity-history', [
+                        'logs' => $this->activityLogs,
                     ])
                 @endif
 

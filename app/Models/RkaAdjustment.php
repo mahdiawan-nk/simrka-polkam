@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class RkaAdjustment extends Model
 {
@@ -24,6 +26,7 @@ class RkaAdjustment extends Model
      * @var array<int, string>
      */
     protected $fillable = [
+        'source_ref_id',
         'rka_header_id',
         'rka_indicator_id',
         'rka_item_id',
@@ -51,39 +54,47 @@ class RkaAdjustment extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'rka_header_id'       => 'integer',
-        'rka_indicator_id'    => 'integer',
-        'rka_item_id'         => 'integer',
-        'account_id'          => 'integer',
+        'rka_header_id' => 'integer',
+        'rka_indicator_id' => 'integer',
+        'rka_item_id' => 'integer',
+        'account_id' => 'integer',
         'destination_unit_id' => 'integer',
-        'target_unit_id'      => 'integer',
-        'proposed_volume'     => 'decimal:2',
-        'unit_price'          => 'decimal:2',
-        'adjusted_by'         => 'integer',
-        'is_imported'          => 'boolean',
-        'proposed_amount'     => 'decimal:2',
-        'approved_amount'     => 'decimal:2',
-        'created_at'          => 'datetime',
-        'updated_at'          => 'datetime',
+        'target_unit_id' => 'integer',
+        'proposed_volume' => 'decimal:2',
+        'unit_price' => 'decimal:2',
+        'adjusted_by' => 'integer',
+        'is_imported' => 'boolean',
+        'proposed_amount' => 'decimal:2',
+        'approved_amount' => 'decimal:2',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
 
     /**
      * Constants untuk Tipe Bagian Penyesuaian (Section Type).
      */
     public const SECTION_A = 'A'; // Usulan Dipindah / Tidak Dianggarkan di Unit Ini
+
     public const SECTION_B = 'B'; // Pos Dikelola Unit Ini untuk Unit Lain (Shared Cost / Usulan Tambahan)
 
     /**
      * Constants untuk Jenis Aksi Reviewer (Action Type).
      */
-    public const ACTION_MOVED                  = 'MOVED';                  // Dipindahkan ke unit lain (Membuat Section B)
-    public const ACTION_BUDGETED_ELSEWHERE     = 'BUDGETED_ELSEWHERE';     // Sudah Dianggarkan di Unit Lain / Terpusat
+    public const ACTION_MOVED = 'MOVED';                  // Dipindahkan ke unit lain (Membuat Section B)
+
+    public const ACTION_BUDGETED_ELSEWHERE = 'BUDGETED_ELSEWHERE';     // Sudah Dianggarkan di Unit Lain / Terpusat
+
     public const ACTION_REJECTED_WITH_ADJUSTMENT = 'REJECTED_WITH_ADJUSTMENT'; // Disesuaikan Lalu Ditolak
-    public const ACTION_REJECTED               = 'REJECTED';               // Dibatalkan / Ditolak Langsung
-    public const ACTION_REMOVED                = 'REMOVED';                // Dipangkas / Dihapus
-    public const ACTION_PENDING                = 'PENDING';                // Ditunda
-    public const ACTION_SHARED_COST            = 'SHARED_COST';            // Dialokasikan untuk unit lain
-    public const ACTION_ADDED_BY_REVIEWER      = 'ADDED_BY_REVIEWER';      // Diberikan tambahan anggaran oleh reviewer
+
+    public const ACTION_REJECTED = 'REJECTED';               // Dibatalkan / Ditolak Langsung
+
+    public const ACTION_REMOVED = 'REMOVED';                // Dipangkas / Dihapus
+
+    public const ACTION_PENDING = 'PENDING';                // Ditunda
+
+    public const ACTION_SHARED_COST = 'SHARED_COST';            // Dialokasikan untuk unit lain
+
+    public const ACTION_ADDED_BY_REVIEWER = 'ADDED_BY_REVIEWER';      // Diberikan tambahan anggaran oleh reviewer
 
     /* =========================================================================
      | RELATIONS
@@ -111,6 +122,14 @@ class RkaAdjustment extends Model
     public function rkaItem(): BelongsTo
     {
         return $this->belongsTo(RkaItem::class, 'rka_item_id');
+    }
+
+    /**
+     * Relasi ke Item Belanja Hasil Import/Realisasi di Unit Pengelola.
+     */
+    public function importedRkaItem(): BelongsTo
+    {
+        return $this->belongsTo(RkaItem::class, 'imported_rka_item_id');
     }
 
     /**
@@ -145,6 +164,16 @@ class RkaAdjustment extends Model
         return $this->belongsTo(User::class, 'adjusted_by');
     }
 
+    public function reconciliationMatch(): HasOne
+    {
+        return $this->hasOne(RkaAdjustmentMatch::class, 'source_adjustment_id');
+    }
+
+    public function counterpartReconciliationMatches(): HasMany
+    {
+        return $this->hasMany(RkaAdjustmentMatch::class, 'counterpart_adjustment_id');
+    }
+
     /* =========================================================================
      | LOCAL SCOPES
      | ========================================================================= */
@@ -173,6 +202,37 @@ class RkaAdjustment extends Model
         return $query->where('action_type', $actionType);
     }
 
+    /**
+     * Scope visibilitas penyesuaian untuk user (milik RKA unit sendiri atau lintas unit yang sudah APPROVED).
+     */
+    public function scopeVisibleToUser(Builder $query, User $user): Builder
+    {
+        if ($user->hasAnyRole(['super_admin', 'direktur', 'keuangan', 'wadir_keuangan'])) {
+            return $query;
+        }
+
+        $departmentIds = $user->departments()->pluck('departments.id')->all();
+        if ($departmentIds === []) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->where(function (Builder $outer) use ($departmentIds): void {
+            // 1. Pemohon melihat semua penyesuaian dalam RKA Header milik unitnya
+            $outer->whereHas('rkaHeader', function (Builder $headerQuery) use ($departmentIds): void {
+                $headerQuery->whereIn('department_id', $departmentIds);
+            })
+            // 2. Unit tujuan Section A / penerima manfaat Section B melihat alokasi setelah RKA APPROVED
+                ->orWhere(function (Builder $crossUnit) use ($departmentIds): void {
+                    $crossUnit->where(function (Builder $rel) use ($departmentIds): void {
+                        $rel->whereIn('destination_unit_id', $departmentIds)
+                            ->orWhereIn('target_unit_id', $departmentIds);
+                    })->whereHas('rkaHeader', function (Builder $headerQuery): void {
+                        $headerQuery->where('status', RkaHeader::STATUS_APPROVED);
+                    });
+                });
+        });
+    }
+
     /* =========================================================================
      | ACCESSORS & HELPER METHODS
      | ========================================================================= */
@@ -191,15 +251,15 @@ class RkaAdjustment extends Model
     public function getActionColorAttribute(): string
     {
         return match ($this->action_type) {
-            self::ACTION_MOVED                  => 'warning',
-            self::ACTION_BUDGETED_ELSEWHERE     => 'info',
+            self::ACTION_MOVED => 'warning',
+            self::ACTION_BUDGETED_ELSEWHERE => 'info',
             self::ACTION_REJECTED_WITH_ADJUSTMENT => 'danger',
-            self::ACTION_REJECTED               => 'danger',
-            self::ACTION_REMOVED                => 'gray',
-            self::ACTION_PENDING                => 'warning',
-            self::ACTION_SHARED_COST            => 'info',
-            self::ACTION_ADDED_BY_REVIEWER      => 'success',
-            default                             => 'secondary',
+            self::ACTION_REJECTED => 'danger',
+            self::ACTION_REMOVED => 'gray',
+            self::ACTION_PENDING => 'warning',
+            self::ACTION_SHARED_COST => 'info',
+            self::ACTION_ADDED_BY_REVIEWER => 'success',
+            default => 'secondary',
         };
     }
 
@@ -209,15 +269,15 @@ class RkaAdjustment extends Model
     public function getActionLabelAttribute(): string
     {
         return match ($this->action_type) {
-            self::ACTION_MOVED                  => 'Dipindahkan',
-            self::ACTION_BUDGETED_ELSEWHERE     => 'Dianggarkan di Unit Lain',
+            self::ACTION_MOVED => 'Dipindahkan',
+            self::ACTION_BUDGETED_ELSEWHERE => 'Dianggarkan di Unit Lain',
             self::ACTION_REJECTED_WITH_ADJUSTMENT => 'Disesuaikan Lalu Ditolak',
-            self::ACTION_REJECTED               => 'Dibatalkan / Ditolak',
-            self::ACTION_REMOVED                => 'Dipangkas / Dihapus',
-            self::ACTION_PENDING                => 'Ditunda',
-            self::ACTION_SHARED_COST            => 'Pos Shared Cost',
-            self::ACTION_ADDED_BY_REVIEWER      => 'Tambahan Reviewer',
-            default                             => $this->action_type,
+            self::ACTION_REJECTED => 'Dibatalkan / Ditolak',
+            self::ACTION_REMOVED => 'Dipangkas / Dihapus',
+            self::ACTION_PENDING => 'Ditunda',
+            self::ACTION_SHARED_COST => 'Pos Shared Cost',
+            self::ACTION_ADDED_BY_REVIEWER => 'Tambahan Reviewer',
+            default => $this->action_type,
         };
     }
 }

@@ -7,36 +7,33 @@ use App\Models\Department;
 use App\Models\RkaGenerateConfig;
 use App\Models\RkaHeader;
 use App\Models\RkaIndicator;
+use App\Models\RkaLog;
 use App\Models\RkaSchedule;
-use Illuminate\Support\Facades\DB;
 use Exception;
+use Illuminate\Support\Facades\DB;
 
 class RkaGenerateService
 {
     /**
      * Jalankan proses auto-generate RKA.
-     *
-     * @param RkaSchedule|null $schedule
-     * @param RkaGenerateConfig|null $config
-     * @return array
      */
     public function generate(?RkaSchedule $schedule = null, ?RkaGenerateConfig $config = null): array
     {
         // 1. Ambil Jadwal jika tidak dipassing (ambil jadwal aktif terdekat)
         $schedule = $schedule ?? RkaSchedule::where('is_active', true)->latest()->first();
 
-        if (!$schedule) {
+        if (! $schedule) {
             throw new Exception('Jadwal RKA (RkaSchedule) tidak ditemukan atau tidak ada jadwal aktif.');
         }
 
         // 2. Ambil konfigurasi aktif jika tidak dipassing
         $config = $config ?? RkaGenerateConfig::where('is_active', true)->first();
 
-        if (!$config) {
+        if (! $config) {
             throw new Exception('Tidak ada konfigurasi RKA Generate yang aktif.');
         }
 
-        if (!$config->rka_setting_id) {
+        if (! $config->rka_setting_id) {
             throw new Exception('Setting RKA belum dipilih pada konfigurasi.');
         }
 
@@ -55,23 +52,37 @@ class RkaGenerateService
         try {
             foreach ($departmentIds as $departmentId) {
                 $department = Department::find($departmentId);
-                if (!$department) {
+                if (! $department) {
                     continue;
                 }
 
                 // 3. Create or Find RKA Header berdasarkan schedule_id & department_id
                 $rkaHeader = RkaHeader::firstOrCreate(
                     [
-                        'schedule_id'   => $schedule->id,
+                        'schedule_id' => $schedule->id,
                         'department_id' => $department->id,
                     ],
                     [
-                        'setting_id'   => $config->rka_setting_id,
-                        'status'       => 'DRAFT',
-                        'pagu_budget'  => 0.00,
-                        'is_locked'    => false,
+                        'setting_id' => $config->rka_setting_id,
+                        'status' => 'DRAFT',
+                        'pagu_budget' => 0.00,
+                        'is_locked' => false,
                     ]
                 );
+
+                if ($rkaHeader->wasRecentlyCreated) {
+                    app(RkaActivityLogService::class)->log(
+                        action: RkaLog::ACTION_GENERATE_RKA,
+                        headerId: $rkaHeader->id,
+                        subject: $rkaHeader,
+                        description: "RKA di-generate otomatis untuk unit {$department->name}.",
+                        newValues: [
+                            'schedule_id' => $schedule->id,
+                            'department_id' => $department->id,
+                            'config_id' => $config->id,
+                        ],
+                    );
+                }
 
                 $processedHeadersCount++;
 
@@ -83,18 +94,18 @@ class RkaGenerateService
                     }
 
                     $accountCode = $indicatorConfig['account_code'] ?? null;
-                    if (!$accountCode) {
+                    if (! $accountCode) {
                         continue;
                     }
 
                     $account = Account::where('code', $accountCode)->first();
-                    if (!$account) {
+                    if (! $account) {
                         continue;
                     }
 
-                    $programName  = $indicatorConfig['program_name'] ?? '-';
+                    $programName = $indicatorConfig['program_name'] ?? '-';
                     $activityName = $indicatorConfig['activity_name'] ?? '-';
-                    $matrixList   = $indicatorConfig['matrix'] ?? [];
+                    $matrixList = $indicatorConfig['matrix'] ?? [];
 
                     // Remap key dari konfigurasi ke struktur atribut indicator_matrix
                     $processedMatrix = array_map(function ($row) use ($department) {
@@ -102,10 +113,10 @@ class RkaGenerateService
                         $benchmark = str_replace(':department_name', $department->name, $benchmark);
 
                         return [
-                            'indicator_category'   => $row['indicator'] ?? '-',
+                            'indicator_category' => $row['indicator'] ?? '-',
                             'performance_benchmark' => $benchmark,
-                            'target_value'         => $row['target'] ?? '-',
-                            'unit_target'           => $row['unit'] ?? ($row['unit_target'] ?? '-'),
+                            'target_value' => $row['target'] ?? '-',
+                            'unit_target' => $row['unit'] ?? ($row['unit_target'] ?? '-'),
                         ];
                     }, $matrixList);
 
@@ -113,12 +124,12 @@ class RkaGenerateService
                     RkaIndicator::updateOrCreate(
                         [
                             'rka_header_id' => $rkaHeader->id,
-                            'account_id'    => $account->id,
+                            'account_id' => $account->id,
                         ],
                         [
-                            'program_name'     => $programName,
-                            'activity_name'    => $activityName,
-                            'location'         => 'Politeknik Kampar',
+                            'program_name' => $programName,
+                            'activity_name' => $activityName,
+                            'location' => 'Politeknik Kampar',
                             'indicator_matrix' => $processedMatrix, // Tersimpan rapi sebagai JSON dengan key baru
                         ]
                     );
@@ -130,9 +141,9 @@ class RkaGenerateService
             DB::commit();
 
             return [
-                'status'     => true,
-                'message'    => 'Proses Auto Generate RKA berhasil dijalankan.',
-                'headers'    => $processedHeadersCount,
+                'status' => true,
+                'message' => 'Proses Auto Generate RKA berhasil dijalankan.',
+                'headers' => $processedHeadersCount,
                 'indicators' => $createdIndicatorsCount,
             ];
         } catch (Exception $e) {
