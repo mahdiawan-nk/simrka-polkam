@@ -3,19 +3,21 @@
 namespace App\Filament\Widgets;
 
 use App\Models\FundRequest;
+use App\Models\RkaSchedule;
+use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Carbon;
-use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
 
 class FinanceStatsOverview extends BaseWidget
 {
     use HasWidgetShield;
+
     protected static ?int $sort = 1;
 
     protected function getStats(): array
     {
-        $currentFiscalYear = '2026/2027';
+        $currentFiscalYear = RkaSchedule::currentFiscalYear();
 
         // 1. Antrean Verifikasi (Status: submitted)
         $pendingCount = FundRequest::where('status', 'submitted')->count();
@@ -27,26 +29,26 @@ class FinanceStatsOverview extends BaseWidget
             ->sum('total_approved');
 
         // 3. Total Penyesuaian/Koreksi (Total Requested - Total Approved pada pengajuan yang telah terverifikasi)
-        $verifiedRequests = FundRequest::where('fiscal_year', $currentFiscalYear)
+        $correctionTotals = FundRequest::query()
+            ->where('fiscal_year', $currentFiscalYear)
             ->whereIn('status', ['verified_kabakku', 'verified_wadir_bakku', 'approved'])
-            ->get();
+            ->selectRaw('COALESCE(SUM(total_requested), 0) as total_requested, COALESCE(SUM(total_approved), 0) as total_approved')
+            ->first();
 
-        $totalRequested = $verifiedRequests->sum('total_requested');
-        $totalApproved = $verifiedRequests->sum('total_approved');
-        $totalCorrection = $totalRequested - $totalApproved;
+        $totalCorrection = (float) ($correctionTotals->total_requested ?? 0) - (float) ($correctionTotals->total_approved ?? 0);
 
         return [
-            Stat::make('Antrean Verifikasi', $pendingCount . ' Dokumen')
+            Stat::make('Antrean Verifikasi', $pendingCount.' Dokumen')
                 ->description('Menunggu pemeriksaan verifikator')
                 ->descriptionIcon('heroicon-m-inbox-stack')
                 ->color($pendingCount > 0 ? 'warning' : 'gray'),
 
-            Stat::make('Pengajuan Diproses Bulan Ini', 'Rp ' . number_format($processedThisMonthAmount, 2, ',', '.'))
-                ->description('Total nominal disetujui bulan ' . Carbon::now()->translatedFormat('F Y'))
+            Stat::make('Pengajuan Diproses Bulan Ini', 'Rp '.number_format($processedThisMonthAmount, 2, ',', '.'))
+                ->description('Total nominal disetujui bulan '.Carbon::now()->translatedFormat('F Y'))
                 ->descriptionIcon('heroicon-m-check-badge')
                 ->color('success'),
 
-            Stat::make('Total Penyesuaian / Koreksi', 'Rp ' . number_format($totalCorrection, 2, ',', '.'))
+            Stat::make('Total Penyesuaian / Koreksi', 'Rp '.number_format($totalCorrection, 2, ',', '.'))
                 ->description('Selisih (Dimohonkan - Disetujui)')
                 ->descriptionIcon('heroicon-m-adjustments-vertical')
                 ->color($totalCorrection > 0 ? 'info' : 'gray'),

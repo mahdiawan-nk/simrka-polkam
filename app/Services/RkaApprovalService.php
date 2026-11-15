@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\DepartmentBudget;
 use App\Models\RkaApproval;
 use App\Models\RkaHeader;
+use App\Models\RkaItem;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -17,17 +18,17 @@ class RkaApprovalService
     {
         return DB::transaction(function () use ($rkaHeader, $user, $comments, $signatureHash) {
             $rkaHeader->update([
-                'status'       => RkaHeader::STATUS_SUBMITTED,
-                'is_locked'    => true,
+                'status' => RkaHeader::STATUS_SUBMITTED,
+                'is_locked' => true,
                 'submitted_at' => now(),
             ]);
 
             return $this->logApproval([
-                'rka_header_id'          => $rkaHeader->id,
-                'approver_user_id'       => $user->id,
-                'stage'                  => RkaApproval::STAGE_KA_UNIT_SUBMIT,
-                'action'                 => RkaApproval::ACTION_SUBMITTED,
-                'comments'               => $comments ?? 'Pengajuan RKA dari unit kerja.',
+                'rka_header_id' => $rkaHeader->id,
+                'approver_user_id' => $user->id,
+                'stage' => RkaApproval::STAGE_KA_UNIT_SUBMIT,
+                'action' => RkaApproval::ACTION_SUBMITTED,
+                'comments' => $comments ?? 'Pengajuan RKA dari unit kerja.',
                 'digital_signature_hash' => $signatureHash,
             ]);
         });
@@ -40,16 +41,16 @@ class RkaApprovalService
     {
         return DB::transaction(function () use ($rkaHeader, $user, $comments) {
             $rkaHeader->update([
-                'status'     => RkaHeader::STATUS_IN_REVIEW,
-                'is_locked'  => true,
+                'status' => RkaHeader::STATUS_IN_REVIEW,
+                'is_locked' => true,
             ]);
 
             return $this->logApproval([
-                'rka_header_id'    => $rkaHeader->id,
+                'rka_header_id' => $rkaHeader->id,
                 'approver_user_id' => $user->id,
-                'stage'            => RkaApproval::STAGE_WADIR2_REVIEW,
-                'action'           => RkaApproval::ACTION_SUBMITTED,
-                'comments'         => $comments ?? 'Wadir Keuangan mulai menelaah RKA.',
+                'stage' => RkaApproval::STAGE_WADIR2_REVIEW,
+                'action' => RkaApproval::ACTION_SUBMITTED,
+                'comments' => $comments ?? 'Wadir Keuangan mulai menelaah RKA.',
             ]);
         });
     }
@@ -61,16 +62,16 @@ class RkaApprovalService
     {
         return DB::transaction(function () use ($rkaHeader, $user, $comments, $signatureHash) {
             $rkaHeader->update([
-                'status'     => RkaHeader::STATUS_IN_APPROVED,
-                'is_locked'  => true,
+                'status' => RkaHeader::STATUS_IN_APPROVED,
+                'is_locked' => true,
             ]);
 
             return $this->logApproval([
-                'rka_header_id'          => $rkaHeader->id,
-                'approver_user_id'       => $user->id,
-                'stage'                  => RkaApproval::STAGE_WADIR2_REVIEW,
-                'action'                 => RkaApproval::ACTION_APPROVED,
-                'comments'               => $comments ?? 'RKA disetujui Wadir Keuangan dan diteruskan ke Direktur.',
+                'rka_header_id' => $rkaHeader->id,
+                'approver_user_id' => $user->id,
+                'stage' => RkaApproval::STAGE_WADIR2_REVIEW,
+                'action' => RkaApproval::ACTION_APPROVED,
+                'comments' => $comments ?? 'RKA disetujui Wadir Keuangan dan diteruskan ke Direktur.',
                 'digital_signature_hash' => $signatureHash,
             ]);
         });
@@ -84,13 +85,17 @@ class RkaApprovalService
         return DB::transaction(function () use ($rkaHeader, $user, $comments, $signatureHash) {
             // 1. Update status RKA Header menjadi APPROVED dan lock dokumen
             $rkaHeader->update([
-                'status'     => RkaHeader::STATUS_APPROVED,
-                'is_locked'  => true,
+                'status' => RkaHeader::STATUS_APPROVED,
+                'is_locked' => true,
             ]);
 
-            // 2. Kelompokkan item RKA yang disetujui (status APPROVED) berdasarkan account_id dan jumlahkan approved_total-nya
+            // 2. Kelompokkan item RKA yang disetujui berdasarkan account_id dan jumlahkan approved_total-nya
             $approvedTotalsByAccount = $rkaHeader->items()
-                ->where('status', 'APPROVED')
+                ->whereIn('status', [
+                    RkaItem::STATUS_APPROVED,
+                    RkaItem::STATUS_ACCEPTED,
+                    RkaItem::STATUS_REDUCED,
+                ])
                 ->select('account_id', DB::raw('SUM(approved_total) as total_approved'))
                 ->groupBy('account_id')
                 ->get();
@@ -100,11 +105,11 @@ class RkaApprovalService
                 DepartmentBudget::updateOrCreate(
                     [
                         'department_id' => $rkaHeader->department_id,
-                        'account_id'    => $itemSum->account_id,
-                        'schedule_id'   => $rkaHeader->schedule_id,
+                        'account_id' => $itemSum->account_id,
+                        'schedule_id' => $rkaHeader->schedule_id,
                     ],
                     [
-                        'fiscal_year'      => $rkaHeader->schedule->fiscal_year ?? date('Y'),
+                        'fiscal_year' => $rkaHeader->schedule->fiscal_year ?? date('Y'),
                         'allocated_amount' => $itemSum->total_approved,
                     ]
                 );
@@ -112,11 +117,11 @@ class RkaApprovalService
 
             // 4. Catat riwayat/log approval
             return $this->logApproval([
-                'rka_header_id'          => $rkaHeader->id,
-                'approver_user_id'       => $user->id,
-                'stage'                  => RkaApproval::STAGE_DIREKTUR_APPROVE,
-                'action'                 => RkaApproval::ACTION_APPROVED,
-                'comments'               => $comments ?? 'RKA resmi disetujui dan disahkan oleh Direktur.',
+                'rka_header_id' => $rkaHeader->id,
+                'approver_user_id' => $user->id,
+                'stage' => RkaApproval::STAGE_DIREKTUR_APPROVE,
+                'action' => RkaApproval::ACTION_APPROVED,
+                'comments' => $comments ?? 'RKA resmi disetujui dan disahkan oleh Direktur.',
                 'digital_signature_hash' => $signatureHash,
             ]);
         });
@@ -129,17 +134,16 @@ class RkaApprovalService
     {
         return DB::transaction(function () use ($rkaHeader, $user, $comments, $signatureHash) {
             $rkaHeader->update([
-                'status'       => RkaHeader::STATUS_REVISION_REQUIRED,
-                'is_locked'    => true,
-                'review_notes' => $comments,
+                'status' => RkaHeader::STATUS_REVISION_REQUIRED,
+                'is_locked' => true,
             ]);
 
             return $this->logApproval([
-                'rka_header_id'          => $rkaHeader->id,
-                'approver_user_id'       => $user->id,
-                'stage'                  => RkaApproval::STAGE_DIREKTUR_APPROVE,
-                'action'                 => RkaApproval::ACTION_REVISED,
-                'comments'               => $comments,
+                'rka_header_id' => $rkaHeader->id,
+                'approver_user_id' => $user->id,
+                'stage' => RkaApproval::STAGE_DIREKTUR_APPROVE,
+                'action' => RkaApproval::ACTION_REVISED,
+                'comments' => $comments,
                 'digital_signature_hash' => $signatureHash,
             ]);
         });
@@ -151,13 +155,13 @@ class RkaApprovalService
     private function logApproval(array $data): RkaApproval
     {
         return RkaApproval::create([
-            'rka_header_id'          => $data['rka_header_id'],
-            'approver_user_id'       => $data['approver_user_id'],
-            'stage'                  => $data['stage'],
-            'action'                 => $data['action'],
-            'comments'               => $data['comments'] ?? null,
+            'rka_header_id' => $data['rka_header_id'],
+            'approver_user_id' => $data['approver_user_id'],
+            'stage' => $data['stage'],
+            'action' => $data['action'],
+            'comments' => $data['comments'] ?? null,
             'digital_signature_hash' => $data['digital_signature_hash'] ?? null,
-            'signed_at'              => now(),
+            'signed_at' => now(),
         ]);
     }
 }

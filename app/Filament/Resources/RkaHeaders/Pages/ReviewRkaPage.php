@@ -2,12 +2,12 @@
 
 namespace App\Filament\Resources\RkaHeaders\Pages;
 
-use App\Filament\Resources\RkaHeaders\RkaHeaderResource;
-use App\Services\RkaReviewService;
 use App\Filament\Actions\Rka\RkaDirekturActions;
 use App\Filament\Actions\Rka\RkaReviewActions;
+use App\Filament\Resources\RkaHeaders\RkaHeaderResource;
 use App\Models\Department;
 use App\Models\RkaHeader;
+use App\Services\RkaReviewService;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Concerns\InteractsWithRecord;
@@ -47,7 +47,7 @@ class ReviewRkaPage extends Page
      * View Blade untuk menampilkan antarmuka Review RKA.
      */
     protected string $view =
-    'filament.resources.rka-headers.pages.review-rka-page';
+        'filament.resources.rka-headers.pages.review-rka-page';
 
     /**
      * Tab utama yang sedang aktif.
@@ -101,6 +101,8 @@ class ReviewRkaPage extends Page
 
         $this->record = $this->resolveRecord($record);
 
+        abort_unless($user && $user->can('view', $this->record), 403);
+
         // Gunakan department milik RKA sebagai filter awal.
         $this->selectedDepartmentId = $this->record->department_id;
 
@@ -115,7 +117,7 @@ class ReviewRkaPage extends Page
     /**
      * Mengubah mode tampilan seluruh item.
      *
-     * @param bool $showAll true untuk menampilkan seluruh item.
+     * @param  bool  $showAll  true untuk menampilkan seluruh item.
      */
     public function toggleShowAllItems(bool $showAll): void
     {
@@ -147,8 +149,11 @@ class ReviewRkaPage extends Page
             ? (string) $firstIndicator->id
             : null;
 
-        // Transisi awal status ketika RKA mulai direview.
-        if (strtolower($this->record->status) === 'submitted') {
+        // Transisi awal status ketika RKA mulai direview oleh reviewer.
+        if (
+            strtolower((string) $this->record->status) === 'submitted'
+            && auth()->user()?->hasAnyRole(['keuangan', 'wadir_keuangan', 'direktur'])
+        ) {
             $this->record->update([
                 'status' => 'IN_REVIEW',
             ]);
@@ -240,13 +245,13 @@ class ReviewRkaPage extends Page
     public function getTitle(): string|Htmlable
     {
         return 'Review RKA - '
-            . ($this->record->department->name ?? 'Unit Work');
+            .($this->record->department->name ?? 'Unit Work');
     }
 
     /**
      * Mengubah tab utama yang aktif.
      *
-     * @param string $tab Nama tab yang dipilih.
+     * @param  string  $tab  Nama tab yang dipilih.
      */
     public function setActiveTab(string $tab): void
     {
@@ -256,7 +261,7 @@ class ReviewRkaPage extends Page
     /**
      * Mengubah indikator RKA yang aktif.
      *
-     * @param string $indicatorId ID indikator yang dipilih.
+     * @param  string  $indicatorId  ID indikator yang dipilih.
      */
     public function setActiveIndicatorTab(string $indicatorId): void
     {

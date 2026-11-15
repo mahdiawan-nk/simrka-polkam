@@ -51,7 +51,7 @@ class RkaItemService
                 'level1Accounts' => collect(),
                 'allAccounts' => collect(),
                 'itemsByAccount' => collect(),
-                'calculateAccountTotal' => fn($account): int => 0,
+                'calculateAccountTotal' => fn ($account): int => 0,
                 'totalUsulan' => 0,
             ];
         }
@@ -129,14 +129,14 @@ class RkaItemService
                 ->lockForUpdate()
                 ->findOrFail($record->id);
 
-            if ($rka->is_locked || $rka->rka_status === 'submitted') {
+            if ($rka->is_locked || strtolower((string) $rka->status) === 'submitted') {
                 throw new InvalidArgumentException(
                     'RKA sudah dikunci atau sudah diajukan.',
                 );
             }
 
             $rka->update([
-                'rka_status' => 'submitted',
+                'status' => 'submitted',
                 'is_locked' => true,
             ]);
         });
@@ -411,7 +411,7 @@ class RkaItemService
     {
         if (
             $record->is_locked
-            || $record->rka_status === 'submitted'
+            || strtolower((string) $record->status) === 'submitted'
         ) {
             throw new InvalidArgumentException(
                 'RKA sudah diajukan dan tidak dapat diubah.',

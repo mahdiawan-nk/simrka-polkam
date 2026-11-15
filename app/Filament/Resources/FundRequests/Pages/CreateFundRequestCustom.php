@@ -7,9 +7,10 @@ use App\Models\Account;
 use App\Models\Department;
 use App\Models\DepartmentBudget;
 use App\Models\FundRequest;
+use App\Models\RkaSchedule;
+use App\Services\Context\ContextManager;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Page;
-use App\Services\Context\ContextManager;
 
 class CreateFundRequestCustom extends Page
 {
@@ -21,14 +22,20 @@ class CreateFundRequestCustom extends Page
 
     // Header Form
     public ?string $document_number = '';
+
     public ?string $request_date = '';
-    public ?string $fiscal_year = '2026/2027';
+
+    public ?string $fiscal_year = '';
 
     // Section A. Kegiatan
     public ?int $department_id = null;
+
     public ?string $activity_name = '';
+
     public ?string $execution_date = '';
+
     public ?string $responsible_person = '';
+
     public ?string $disbursement_type = 'Uang muka (panjar) – dipertanggungjawabkan kemudian';
 
     // Section B. Rincian Kebutuhan
@@ -36,9 +43,11 @@ class CreateFundRequestCustom extends Page
 
     // Section D. Pembayaran Kepada
     public ?string $recipient_name = '';
+
     public ?string $bank_account_info = '';
 
     public bool $disableSelectDepartment = false;
+
     // Section E. Lampiran
     public array $attachments = [];
 
@@ -46,7 +55,8 @@ class CreateFundRequestCustom extends Page
     {
         $this->request_date = now()->format('Y-m-d');
         $this->execution_date = now()->addDays(14)->format('Y-m-d');
-        
+        $this->fiscal_year = RkaSchedule::currentFiscalYear();
+
         // Default 5 baris kosong rincian kebutuhan
         for ($i = 0; $i < 5; $i++) {
             $this->addItemRow();
@@ -115,9 +125,9 @@ class CreateFundRequestCustom extends Page
             $accountId = $item['account_id'];
             $totalPrice = (float) ($item['total_price'] ?? 0);
 
-            if (!isset($summaries[$accountId])) {
+            if (! isset($summaries[$accountId])) {
                 $account = Account::find($accountId);
-                
+
                 // Cari pagu department untuk akun ini
                 $paguAmount = 0;
                 if ($this->department_id) {
@@ -178,7 +188,7 @@ class CreateFundRequestCustom extends Page
         ]);
 
         foreach ($this->items as $item) {
-            if (!empty($item['account_id']) && !empty($item['description'])) {
+            if (! empty($item['account_id']) && ! empty($item['description'])) {
                 $fundRequest->items()->create([
                     'account_id' => $item['account_id'],
                     'description' => $item['description'],

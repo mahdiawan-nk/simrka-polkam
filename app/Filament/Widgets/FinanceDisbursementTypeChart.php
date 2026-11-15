@@ -3,22 +3,24 @@
 namespace App\Filament\Widgets;
 
 use App\Models\FundRequest;
+use App\Models\RkaSchedule;
+use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
 use Filament\Widgets\ChartWidget;
 use Illuminate\Support\Facades\DB;
-use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
 
 class FinanceDisbursementTypeChart extends ChartWidget
 {
     use HasWidgetShield;
+
     protected ?string $heading = 'Porsi Pengajuan berdasarkan Jenis Pencairan';
 
     protected static ?int $sort = 4;
 
-    protected int | string | array $columnSpan = 1;
+    protected int|string|array $columnSpan = 1;
 
     protected function getData(): array
     {
-        $currentFiscalYear = '2026/2027';
+        $currentFiscalYear = RkaSchedule::currentFiscalYear();
 
         $disbursements = FundRequest::query()
             ->select('disbursement_type', DB::raw('COUNT(*) as total_count'), DB::raw('SUM(total_requested) as total_amount'))

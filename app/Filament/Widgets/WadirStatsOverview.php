@@ -4,20 +4,22 @@ namespace App\Filament\Widgets;
 
 use App\Models\FundRequest;
 use App\Models\FundRequestApproval;
+use App\Models\RkaSchedule;
+use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
 
 class WadirStatsOverview extends BaseWidget
 {
     use HasWidgetShield;
+
     protected static ?int $sort = 1;
 
     protected function getStats(): array
     {
-        $currentFiscalYear = '2026/2027';
+        $currentFiscalYear = RkaSchedule::currentFiscalYear();
 
         // 1. Antrean Persetujuan Wadir (Status: verified_kabakku)
         $pendingCount = FundRequest::where('status', 'verified_kabakku')->count();
@@ -37,17 +39,17 @@ class WadirStatsOverview extends BaseWidget
             ->value('avg_hours');
 
         $turnaroundText = $avgHours
-            ? ($avgHours >= 24 ? round($avgHours / 24, 1) . ' Hari' : round($avgHours, 1) . ' Jam')
+            ? ($avgHours >= 24 ? round($avgHours / 24, 1).' Hari' : round($avgHours, 1).' Jam')
             : '0 Jam';
 
         return [
-            Stat::make('Antrean Persetujuan Wadir', $pendingCount . ' Dokumen')
+            Stat::make('Antrean Persetujuan Wadir', $pendingCount.' Dokumen')
                 ->description('Menunggu verifikasi Wadir BAKKU')
                 ->descriptionIcon('heroicon-m-clock')
                 ->color($pendingCount > 0 ? 'warning' : 'gray'),
 
-            Stat::make('Total Persetujuan Bulan Ini', 'Rp ' . number_format($approvedThisMonth, 2, ',', '.'))
-                ->description('Nominal disetujui Wadir bulan ' . Carbon::now()->translatedFormat('F Y'))
+            Stat::make('Total Persetujuan Bulan Ini', 'Rp '.number_format($approvedThisMonth, 2, ',', '.'))
+                ->description('Nominal disetujui Wadir bulan '.Carbon::now()->translatedFormat('F Y'))
                 ->descriptionIcon('heroicon-m-check-badge')
                 ->color('success'),
 

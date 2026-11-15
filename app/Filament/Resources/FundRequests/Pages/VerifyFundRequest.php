@@ -5,6 +5,7 @@ namespace App\Filament\Resources\FundRequests\Pages;
 use App\Filament\Resources\FundRequests\FundRequestResource;
 use App\Models\Account;
 use App\Models\FundRequestItem;
+use App\Models\User;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Concerns\InteractsWithRecord;
 use Filament\Resources\Pages\Page;
@@ -20,38 +21,66 @@ class VerifyFundRequest extends Page
 
     // State Modal Approval
     public bool $isModalOpen = false;
+
     public ?int $selectedItemId = null;
+
     public ?string $selectedItemDescription = null;
+
     public float $selectedItemRequestedVolume = 0;
+
     public ?string $selectedItemUnit = null;
+
     public float $selectedItemUnitPrice = 0;
+
     public float $selectedItemRequestedPrice = 0;
 
     // Form Modal Fields
     public ?float $modal_approved_volume = null;
+
     public ?float $modal_approved_price = null;
+
     public ?string $modal_verification_status = null;
+
     public ?string $modal_finance_note = null;
 
     // Data Store Temporary
     public array $itemVerifications = [];
+
     public array $verifications = [];
 
     public ?string $verification_note = null;
+
     public string $action_type = 'approve';
+
+    public static function canAccess(array $parameters = []): bool
+    {
+        $user = auth()->user();
+
+        return $user !== null && $user->hasAnyRole(['keuangan', 'wadir_keuangan', 'direktur']);
+    }
 
     public function mount(int|string $record): void
     {
+        $user = auth()->user();
+
+        abort_unless(
+            $user && $user->hasAnyRole(['keuangan', 'wadir_keuangan', 'direktur']),
+            403,
+            'Anda tidak memiliki akses ke halaman verifikasi.'
+        );
+
         // Eager-load approvals dan user agar efisien
         $this->record = $this->resolveRecord($record)->load(['items', 'approvals.user']);
+
+        abort_unless($user->can('view', $this->record), 403);
         $items = $this->record->items ?? [];
 
         foreach ($items as $item) {
             $this->itemVerifications[$item->id] = [
-                'approved_volume'     => $item->approved_volume,
-                'approved_price'      => $item->approved_price,
+                'approved_volume' => $item->approved_volume,
+                'approved_price' => $item->approved_price,
                 'verification_status' => $item->verification_status,
-                'finance_note'        => $item->finance_note ?? '',
+                'finance_note' => $item->finance_note ?? '',
             ];
         }
 
@@ -63,7 +92,7 @@ class VerifyFundRequest extends Page
 
     public function canVerifyItems(): bool
     {
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = auth()->user();
 
         return $user && $user->hasRole('keuangan');
@@ -116,6 +145,7 @@ class VerifyFundRequest extends Page
     {
         if ($value === '' || $value === null) {
             $this->modal_approved_price = null;
+
             return;
         }
 
@@ -156,34 +186,34 @@ class VerifyFundRequest extends Page
 
         // 1. Validasi Input Modal
         $this->validate([
-            'modal_approved_volume'     => 'nullable|numeric|min:0',
-            'modal_approved_price'      => 'nullable|numeric|min:0',
+            'modal_approved_volume' => 'nullable|numeric|min:0',
+            'modal_approved_price' => 'nullable|numeric|min:0',
             'modal_verification_status' => 'required|in:approved,partial,rejected',
-            'modal_finance_note'        => 'nullable|string|max:500',
+            'modal_finance_note' => 'nullable|string|max:500',
         ]);
 
         // 1. Tentukan nilai volume dan harga berdasarkan status verifikasi
         $isApprovedOrPartial = in_array($this->modal_verification_status, ['approved', 'partial'], true);
 
         $approvedVolume = $isApprovedOrPartial ? $this->modal_approved_volume : null;
-        $approvedPrice  = $isApprovedOrPartial ? $this->modal_approved_price : null;
+        $approvedPrice = $isApprovedOrPartial ? $this->modal_approved_price : null;
 
         // 2. Update Database
         FundRequestItem::where('id', $this->selectedItemId)
             ->where('fund_request_id', $this->record->id)
             ->update([
-                'approved_volume'     => $approvedVolume,
-                'approved_price'      => $approvedPrice,
+                'approved_volume' => $approvedVolume,
+                'approved_price' => $approvedPrice,
                 'verification_status' => $this->modal_verification_status,
-                'finance_note'        => $this->modal_finance_note,
+                'finance_note' => $this->modal_finance_note,
             ]);
 
         // 3. Sync Ke State Lokal Livewire (Pastikan state lokal juga mendapat nilai null jika rejected)
         $this->itemVerifications[$this->selectedItemId] = [
-            'approved_volume'     => $approvedVolume,
-            'approved_price'      => $approvedPrice,
+            'approved_volume' => $approvedVolume,
+            'approved_price' => $approvedPrice,
             'verification_status' => $this->modal_verification_status,
-            'finance_note'        => $this->modal_finance_note,
+            'finance_note' => $this->modal_finance_note,
         ];
 
         // 4. Hitung ulang verifikasi akun & reload record
@@ -221,12 +251,12 @@ class VerifyFundRequest extends Page
             });
 
             $this->verifications[] = [
-                'account_id'            => $accountId,
-                'account_code'          => $account?->code ?? '-',
-                'final_account_id'      => $accountId,
-                'remaining_budget'      => $account?->remaining_budget ?? 0,
-                'amount_approved'       => $totalApproved,
-                'status'                => 'Disetujui',
+                'account_id' => $accountId,
+                'account_code' => $account?->code ?? '-',
+                'final_account_id' => $accountId,
+                'remaining_budget' => $account?->remaining_budget ?? 0,
+                'amount_approved' => $totalApproved,
+                'status' => 'Disetujui',
                 'register_proof_number' => null,
             ];
         }
@@ -258,8 +288,17 @@ class VerifyFundRequest extends Page
 
     public function saveVerification(): void
     {
-        /** @var \App\Models\User $user */
+        /** @var User|null $user */
         $user = auth()->user();
+
+        abort_unless(
+            $user && $user->hasAnyRole(['keuangan', 'wadir_keuangan', 'direktur']),
+            403,
+            'Anda tidak memiliki wewenang untuk melakukan verifikasi.'
+        );
+
+        abort_unless($user->can('view', $this->record), 403);
+
         $isApproved = $this->action_type === 'approve';
 
         DB::transaction(function () use ($user, $isApproved) {
@@ -271,11 +310,11 @@ class VerifyFundRequest extends Page
 
                 foreach ($this->verifications as $verification) {
                     $this->record->verifications()->create([
-                        'account_id'            => $verification['account_id'],
-                        'final_account_id'      => $verification['final_account_id'],
-                        'remaining_budget'      => $verification['remaining_budget'],
-                        'amount_approved'       => $isApproved ? $verification['amount_approved'] : 0,
-                        'status'                => $verification['status'] ?? 'Disetujui',
+                        'account_id' => $verification['account_id'],
+                        'final_account_id' => $verification['final_account_id'],
+                        'remaining_budget' => $verification['remaining_budget'],
+                        'amount_approved' => $isApproved ? $verification['amount_approved'] : 0,
+                        'status' => $verification['status'] ?? 'Disetujui',
                         'register_proof_number' => $verification['register_proof_number'] ?? null,
                     ]);
                 }
@@ -286,20 +325,19 @@ class VerifyFundRequest extends Page
                 $stage = 'director';
                 $nextStatus = $isApproved ? 'approved' : 'rejected';
             } else {
-                $stage = 'kabakku';
-                $nextStatus = $isApproved ? 'approved' : 'rejected';
+                abort(403, 'Anda tidak memiliki wewenang untuk melakukan verifikasi.');
             }
 
             $this->record->approvals()->create([
-                'stage'           => $stage,
-                'action'          => $isApproved ? 'approved' : 'rejected',
+                'stage' => $stage,
+                'action' => $isApproved ? 'approved' : 'rejected',
                 'approved_amount' => $isApproved ? $this->approvedTotal : 0,
-                'note'            => $this->verification_note,
-                'user_id'         => $user->id,
+                'note' => $this->verification_note,
+                'user_id' => $user->id,
             ]);
 
             $this->record->update([
-                'status'         => $nextStatus,
+                'status' => $nextStatus,
                 'total_approved' => $isApproved ? $this->approvedTotal : 0,
             ]);
         });

@@ -20,8 +20,11 @@ class RkaSettingResource extends Resource
     protected static ?string $model = RkaSetting::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCog6Tooth;
-    protected static string | UnitEnum | null $navigationGroup = 'Manajeman RKA';
+
+    protected static string|UnitEnum|null $navigationGroup = 'Manajemen RKA';
+
     protected static ?string $navigationLabel = 'Pengaturan RKA';
+
     public static function form(Schema $schema): Schema
     {
         return RkaSettingForm::configure($schema);

@@ -2,13 +2,13 @@
 
 namespace App\Filament\Resources\RkaHeaders\Pages;
 
-use App\Filament\Resources\RkaHeaders\RkaHeaderResource;
 use App\Filament\Actions\Rka\RkaActions;
+use App\Filament\Resources\RkaHeaders\RkaHeaderResource;
 use App\Services\RkaItemService;
 use Filament\Actions\Action;
+use Filament\Resources\Pages\Concerns\InteractsWithRecord;
 use Filament\Resources\Pages\Page;
 use Illuminate\Contracts\Support\Htmlable;
-use Filament\Resources\Pages\Concerns\InteractsWithRecord;
 use Livewire\Attributes\Computed;
 
 /**
@@ -27,8 +27,6 @@ use Livewire\Attributes\Computed;
  *
  * Implementasi action dipisahkan ke dalam RkaActions, sedangkan
  * pengolahan hierarki anggaran ditangani oleh RkaItemService.
- *
- * @package App\Filament\Resources\RkaHeaders\Pages
  */
 class RkaFormIndicatorAndItem extends Page
 {
@@ -43,11 +41,9 @@ class RkaFormIndicatorAndItem extends Page
 
     /**
      * Lokasi template Blade untuk menampilkan halaman penyusunan RKA.
-     *
-     * @var string
      */
     protected string $view =
-    'filament.resources.rka-headers.pages.rka-form-indicator-and-item';
+        'filament.resources.rka-headers.pages.rka-form-indicator-and-item';
 
     /**
      * ID indikator program yang sedang aktif pada tab.
@@ -56,8 +52,6 @@ class RkaFormIndicatorAndItem extends Page
      * konteks pengelolaan item belanja dan hierarki akun.
      *
      * Nilai null menunjukkan belum ada indikator yang dipilih.
-     *
-     * @var string|null
      */
     public ?string $activeTabGroup = null;
 
@@ -70,9 +64,7 @@ class RkaFormIndicatorAndItem extends Page
      * Setelah data dimuat, indikator pertama dipilih sebagai tab aktif
      * apabila RKA memiliki setidaknya satu indikator.
      *
-     * @param int|string $record ID record RKA yang akan ditampilkan.
-     *
-     * @return void
+     * @param  int|string  $record  ID record RKA yang akan ditampilkan.
      */
     public function mount(int|string $record): void
     {
@@ -83,6 +75,9 @@ class RkaFormIndicatorAndItem extends Page
             'indicators.account',
             'items.account',
         ]);
+
+        $user = auth()->user();
+        abort_unless($user && $user->can('view', $this->record), 403);
 
         // Menetapkan indikator pertama sebagai tab aktif jika tersedia.
         $firstIndicator = $this->record->indicators->first();
@@ -121,7 +116,7 @@ class RkaFormIndicatorAndItem extends Page
     public function getTitle(): string|Htmlable
     {
         return 'Penyusunan Formulir RKA - '
-            . ($this->record->department->name ?? 'Unit Work');
+            .($this->record->department->name ?? 'Unit Work');
     }
 
     /**
@@ -249,9 +244,7 @@ class RkaFormIndicatorAndItem extends Page
      * Method ini dapat dipanggil dari Blade ketika pengguna memilih
      * tab indikator yang berbeda.
      *
-     * @param string $indicatorId ID indikator yang akan diaktifkan.
-     *
-     * @return void
+     * @param  string  $indicatorId  ID indikator yang akan diaktifkan.
      */
     public function setActiveTab(string $indicatorId): void
     {

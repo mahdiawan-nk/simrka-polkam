@@ -4,23 +4,42 @@ namespace App\Filament\Pages\Database;
 
 use App\Jobs\RunDatabaseBackup;
 use App\Models\BackupRun;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 use Filament\Actions\Action;
-use Filament\Notifications\Notification;
-use Filament\Pages\Page;
-use Filament\Tables;
-use Filament\Tables\Table;
-use Filament\Tables\Contracts\HasTable;
-use Filament\Tables\Concerns\InteractsWithTable;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
+use Filament\Pages\Page;
+use Filament\Tables;
+use Filament\Tables\Concerns\InteractsWithTable;
+use Filament\Tables\Contracts\HasTable;
+use Filament\Tables\Table;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Filament\Forms\Components\CheckboxList;
 
 class BackupManagement extends Page implements HasTable
 {
+    use HasPageShield;
     use InteractsWithTable;
+
+    public static function canAccess(): bool
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        if ($user->hasRole('super_admin')) {
+            return true;
+        }
+
+        $permission = static::getPagePermission();
+
+        return $permission ? $user->can($permission) : false;
+    }
 
     // protected static ?string $navigationIcon = 'heroicon-o-circle-stack';
 
@@ -31,10 +50,9 @@ class BackupManagement extends Page implements HasTable
     protected static ?string $slug = 'database/backup';
 
     protected string $view =
-    'filament.pages.database.backup-management';
+        'filament.pages.database.backup-management';
 
     protected static ?int $navigationSort = 10;
-
 
     protected function getHeaderActions(): array
     {
@@ -52,7 +70,7 @@ class BackupManagement extends Page implements HasTable
                         ->label('Nama Backup')
                         ->required()
                         ->maxLength(255)
-                        ->default(fn() => 'Backup ' . now()->format('Y-m-d H:i')),
+                        ->default(fn () => 'Backup '.now()->format('Y-m-d H:i')),
 
                     Textarea::make('description')
                         ->label('Deskripsi')
@@ -79,13 +97,13 @@ class BackupManagement extends Page implements HasTable
 
                     CheckboxList::make('table_names')
                         ->label('Pilih Tabel Database')
-                        ->options(fn() => collect(
+                        ->options(fn () => collect(
                             DB::connection()->getSchemaBuilder()->getTableListing()
                         )
-                            ->reject(fn($table) => in_array($table, [
+                            ->reject(fn ($table) => in_array($table, [
                                 'migrations',
                             ], true))
-                            ->mapWithKeys(fn($table) => [
+                            ->mapWithKeys(fn ($table) => [
                                 $table => $table,
                             ])
                             ->all())
@@ -93,10 +111,10 @@ class BackupManagement extends Page implements HasTable
                         ->searchable()
                         ->bulkToggleable()
                         ->gridDirection('row')
-                        ->visible(fn($get) => $get('type') === 'table')
-                        ->required(fn($get) => $get('type') === 'table')
+                        ->visible(fn ($get) => $get('type') === 'table')
+                        ->required(fn ($get) => $get('type') === 'table')
                         ->minItems(1)
-                        ->helperText('Pilih satu atau beberapa tabel yang ingin di-backup.')
+                        ->helperText('Pilih satu atau beberapa tabel yang ingin di-backup.'),
                 ])
                 ->action(function (array $data): void {
                     $tables = $data['type'] === 'table'
@@ -132,21 +150,20 @@ class BackupManagement extends Page implements HasTable
     {
         return $table
             ->query(
-                BackupRun::query()->latest()
+                BackupRun::query()->with(['creator', 'files'])->latest()
             )
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->label('Nama Backup')
                     ->searchable()
                     ->description(
-                        fn(BackupRun $record) =>
-                        $record->description
+                        fn (BackupRun $record) => $record->description
                     ),
 
                 Tables\Columns\TextColumn::make('type')
                     ->label('Jenis')
                     ->badge()
-                    ->formatStateUsing(fn($state) => match ($state) {
+                    ->formatStateUsing(fn ($state) => match ($state) {
                         'full' => 'Full Database',
                         'table' => 'Selected Tables',
                         default => $state,
@@ -157,12 +174,12 @@ class BackupManagement extends Page implements HasTable
                     ->label('Format')
                     ->badge()
                     ->color('gray')
-                    ->formatStateUsing(fn($state) => strtoupper($state)),
+                    ->formatStateUsing(fn ($state) => strtoupper($state)),
 
                 Tables\Columns\TextColumn::make('status')
                     ->label('Status')
                     ->badge()
-                    ->color(fn($state) => match ($state) {
+                    ->color(fn ($state) => match ($state) {
                         'success' => 'success',
                         'processing' => 'info',
                         'failed' => 'danger',
@@ -177,15 +194,13 @@ class BackupManagement extends Page implements HasTable
                 Tables\Columns\TextColumn::make('total_size')
                     ->label('Ukuran')
                     ->formatStateUsing(
-                        fn($state) =>
-                        self::formatBytes((int) $state)
+                        fn ($state) => self::formatBytes((int) $state)
                     ),
 
                 Tables\Columns\TextColumn::make('duration_seconds')
                     ->label('Durasi')
                     ->formatStateUsing(
-                        fn($state) =>
-                        $state !== null ? $state . ' detik' : '-'
+                        fn ($state) => $state !== null ? $state.' detik' : '-'
                     ),
 
                 Tables\Columns\TextColumn::make('creator.name')
@@ -219,13 +234,11 @@ class BackupManagement extends Page implements HasTable
                     ->label('Detail')
                     ->icon('heroicon-o-eye')
                     ->modalHeading(
-                        fn(BackupRun $record) =>
-                        'Detail Backup: ' . $record->name
+                        fn (BackupRun $record) => 'Detail Backup: '.$record->name
                     )
                     ->modalContent(
-                        fn(BackupRun $record) =>
-                        view('filament.pages.database.backup-detail', [
-                            'record' => $record->load('files'),
+                        fn (BackupRun $record) => view('filament.pages.database.backup-detail', [
+                            'record' => $record->loadMissing(['files', 'creator']),
                         ])
                     )
                     ->modalSubmitAction(false)
@@ -259,6 +272,6 @@ class BackupManagement extends Page implements HasTable
         $power = min($power, count($units) - 1);
 
         return round($bytes / (1024 ** $power), 2)
-            . ' ' . $units[$power];
+            .' '.$units[$power];
     }
 }

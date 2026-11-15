@@ -5,11 +5,10 @@ namespace App\Filament\Resources\FundRequests\Pages;
 use App\Filament\Resources\FundRequests\FundRequestResource;
 use App\Models\Account;
 use App\Models\DepartmentBudget;
-use App\Models\FundRequest;
+use App\Services\Context\ContextManager;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Concerns\InteractsWithRecord;
 use Filament\Resources\Pages\Page;
-use App\Services\Context\ContextManager;
 use Illuminate\Validation\Rule;
 
 class EditFundRequestCustom extends Page
@@ -24,14 +23,20 @@ class EditFundRequestCustom extends Page
 
     // Header Form
     public ?string $document_number = '';
+
     public ?string $request_date = '';
+
     public ?string $fiscal_year = '';
 
     // Section A. Kegiatan
     public ?int $department_id = null;
+
     public ?string $activity_name = '';
+
     public ?string $execution_date = '';
+
     public ?string $responsible_person = '';
+
     public ?string $disbursement_type = '';
 
     // Section B. Rincian Kebutuhan
@@ -39,6 +44,7 @@ class EditFundRequestCustom extends Page
 
     // Section D. Pembayaran Kepada
     public ?string $recipient_name = '';
+
     public ?string $bank_account_info = '';
 
     public bool $disableSelectDepartment = false;
@@ -50,6 +56,9 @@ class EditFundRequestCustom extends Page
     {
         // 1. Resolve Record dari Route parameter
         $this->record = $this->resolveRecord($record)->load(['approvals.user', 'items']);
+
+        $user = auth()->user();
+        abort_unless($user && $user->can('update', $this->record), 403);
         // $this->record = $this->resolveRecord($record);
 
         // 2. Populate Header & General Info
@@ -76,10 +85,10 @@ class EditFundRequestCustom extends Page
                 'unit' => $item->unit,
                 'unit_price' => (float) $item->unit_price,
                 'total_price' => (float) $item->total_price,
-                'approved_volume'     => $item->approved_volume,
-                'approved_price'      => $item->approved_price,
+                'approved_volume' => $item->approved_volume,
+                'approved_price' => $item->approved_price,
                 'verification_status' => $item->verification_status,
-                'finance_note'        => $item->finance_note,
+                'finance_note' => $item->finance_note,
             ];
         }
 
@@ -94,7 +103,7 @@ class EditFundRequestCustom extends Page
         $activeDept = $context->getActiveDepartment();
 
         if ($activeDept) {
-            $this->department_id = $activeDept->id;
+            $this->department_id ??= $activeDept->id;
             $this->disableSelectDepartment = true;
         }
     }
@@ -151,7 +160,7 @@ class EditFundRequestCustom extends Page
             // Ambil nominal approved jika ada
             $approvedPrice = (float) ($item['approved_price'] ?? 0);
 
-            if (!isset($summaries[$accountId])) {
+            if (! isset($summaries[$accountId])) {
                 $account = Account::find($accountId);
 
                 $paguAmount = 0;
@@ -164,13 +173,13 @@ class EditFundRequestCustom extends Page
                 }
 
                 $summaries[$accountId] = [
-                    'account_code'    => $account?->code ?? '-',
-                    'account_name'    => $account?->name ?? '-',
-                    'note'            => $account?->managed_by_note ?? '',
+                    'account_code' => $account?->code ?? '-',
+                    'account_name' => $account?->name ?? '-',
+                    'note' => $account?->managed_by_note ?? '',
                     'total_requested' => 0,
-                    'total_approved'  => 0,
-                    'total_rejected'  => 0,
-                    'pagu_unit'       => $paguAmount,
+                    'total_approved' => 0,
+                    'total_rejected' => 0,
+                    'pagu_unit' => $paguAmount,
                 ];
             }
 
@@ -224,7 +233,7 @@ class EditFundRequestCustom extends Page
             'bank_account_info' => $this->bank_account_info,
             'attachments' => $this->attachments,
             'total_requested' => $this->totalRequested,
-            'status' => 'submitted', // Tetap pertahankan status saat ini
+            'status' => $this->record->status, // Tetap pertahankan status saat ini
         ]);
 
         // 2. Sinkronisasi Items (Update, Create, Delete)
@@ -235,7 +244,7 @@ class EditFundRequestCustom extends Page
 
         // Update atau Tambah Item Baru
         foreach ($this->items as $item) {
-            if (!empty($item['account_id']) && !empty($item['description'])) {
+            if (! empty($item['account_id']) && ! empty($item['description'])) {
                 $totalPrice = $item['volume'] * $item['unit_price'];
 
                 $this->record->items()->updateOrCreate(

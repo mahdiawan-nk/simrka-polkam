@@ -45,23 +45,28 @@ class RkaHeader extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'submitted_at'      => 'datetime',
-        'review_date'        => 'date',
-        'pagu_budget'       => 'decimal:2',
-        'is_locked'         => 'boolean',
+        'submitted_at' => 'datetime',
+        'review_date' => 'date',
+        'pagu_budget' => 'decimal:2',
+        'is_locked' => 'boolean',
         'unlocked_by_admin' => 'boolean',
-        'created_at'        => 'datetime',
-        'updated_at'        => 'datetime',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
 
     /**
      * Constants untuk Opsi Status Dokumen RKA.
      */
     public const STATUS_DRAFT = 'DRAFT';
+
     public const STATUS_SUBMITTED = 'SUBMITTED';
+
     public const STATUS_IN_REVIEW = 'IN_REVIEW';
+
     public const STATUS_IN_APPROVED = 'IN_APPROVED';
+
     public const STATUS_REVISION_REQUIRED = 'REVISION_REQUIRED';
+
     public const STATUS_APPROVED = 'APPROVED';
 
     /* =========================================================================
@@ -185,7 +190,7 @@ class RkaHeader extends Model
      */
     public function calculateProposedTotal(): float
     {
-        return (float) $this->items()->where('is_imported',0)->sum('proposed_total');
+        return (float) $this->items()->where('is_imported', 0)->sum('proposed_total');
     }
 
     /**
@@ -210,12 +215,12 @@ class RkaHeader extends Model
     public function getStatusColorAttribute(): string
     {
         return match ($this->status) {
-            self::STATUS_DRAFT             => 'gray',
-            self::STATUS_SUBMITTED         => 'info',
-            self::STATUS_IN_REVIEW         => 'warning',
+            self::STATUS_DRAFT => 'gray',
+            self::STATUS_SUBMITTED => 'info',
+            self::STATUS_IN_REVIEW => 'warning',
             self::STATUS_REVISION_REQUIRED => 'danger',
-            self::STATUS_APPROVED          => 'success',
-            default                        => 'secondary',
+            self::STATUS_APPROVED => 'success',
+            default => 'secondary',
         };
     }
 
@@ -228,7 +233,7 @@ class RkaHeader extends Model
      */
     public function calculateTotalProposedByHeader(): float
     {
-        return (float) $this->items()->where('is_imported',0)->sum('proposed_total');
+        return (float) $this->items()->where('is_imported', 0)->sum('proposed_total');
     }
 
     /**
@@ -244,8 +249,8 @@ class RkaHeader extends Model
      */
     public function calculatePaguRka(): float
     {
-        // Hitung sum proposed_total dari seluruh items terkait rka_header ini
-        $totalProposed = (float) $this->items()->sum('proposed_total');
+        // Hitung sum proposed_total dari seluruh items usulan unit (non-imported) terkait rka_header ini
+        $totalProposed = (float) $this->items()->where('is_imported', 0)->sum('proposed_total');
 
         // Update kolom pagu_budget di database
         $this->update([
@@ -278,11 +283,11 @@ class RkaHeader extends Model
     /**
      * Mengambil semua adjustment dari unit lain yang dialokasikan untuk unit ini (Moved & Shared Cost).
      */
-    public function incomingAdjustments(): HasMany
+    public function incomingAdjustments(): Builder
     {
-        return $this->hasMany(RkaAdjustment::class, 'destination_unit_id', 'department_id')
-            ->orWhere(function ($query) {
-                $query->where('target_unit_id', $this->department_id);
-            });
+        return RkaAdjustment::query()->where(function ($query): void {
+            $query->where('destination_unit_id', $this->department_id)
+                ->orWhere('target_unit_id', $this->department_id);
+        });
     }
 }

@@ -5,23 +5,25 @@ namespace App\Filament\Widgets;
 use App\Models\Department;
 use App\Models\DepartmentBudget;
 use App\Models\FundRequest;
-use Filament\Widgets\Widget;
+use App\Models\RkaSchedule;
 use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
+use Filament\Widgets\Widget;
 
 class DirectorDepartmentPerformance extends Widget
 {
     use HasWidgetShield;
+
     protected string $view = 'filament.widgets.director-department-performance';
 
     protected static ?int $sort = 3;
 
-    protected int | string | array $columnSpan = 'full';
+    protected int|string|array $columnSpan = 'full';
 
     protected function getViewData(): array
     {
-        $currentFiscalYear = '2026/2027';
+        $currentFiscalYear = RkaSchedule::currentFiscalYear();
 
-        $departments = Department::whereHas('budgets', fn($q) => $q->where('fiscal_year', $currentFiscalYear))->get();
+        $departments = Department::whereHas('budgets', fn ($q) => $q->where('fiscal_year', $currentFiscalYear))->get();
 
         $performance = $departments->map(function ($dept) use ($currentFiscalYear) {
             $pagu = DepartmentBudget::where('department_id', $dept->id)

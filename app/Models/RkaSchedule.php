@@ -42,13 +42,13 @@ class RkaSchedule extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'start_at'              => 'datetime',
-        'end_at'                => 'datetime',
-        'is_active'             => 'boolean',
+        'start_at' => 'datetime',
+        'end_at' => 'datetime',
+        'is_active' => 'boolean',
         'allow_late_submission' => 'boolean',
-        'created_by'            => 'integer',
-        'created_at'            => 'datetime',
-        'updated_at'            => 'datetime',
+        'created_by' => 'integer',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
 
     /* =========================================================================
@@ -117,6 +117,23 @@ class RkaSchedule extends Model
         }
 
         return Carbon::now()->between($this->start_at, $this->end_at);
+    }
+
+    /**
+     * Mengambil tahun anggaran aktif dari jadwal RKA, atau fallback ke jadwal terbaru / tahun berjalan.
+     */
+    public static function currentFiscalYear(): string
+    {
+        return static::query()
+            ->where('is_active', true)
+            ->orderByDesc('start_at')
+            ->value('fiscal_year')
+            ?? static::query()
+                ->orderByDesc('start_at')
+                ->value('fiscal_year')
+            ?? (now()->month >= 9
+                ? now()->year.'/'.(now()->year + 1)
+                : (now()->year - 1).'/'.now()->year);
     }
 
     /**

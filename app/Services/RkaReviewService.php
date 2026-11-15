@@ -3,12 +3,10 @@
 namespace App\Services;
 
 use App\Models\Account;
-use App\Models\Department;
 use App\Models\RkaAdjustment;
 use App\Models\RkaHeader;
 use App\Models\RkaIndicator;
 use App\Models\RkaItem;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -41,7 +39,10 @@ class RkaReviewService
             'incomingSharedCosts.account',
         ]);
 
-        if (strtolower($header->status) === 'submitted') {
+        if (
+            strtolower((string) $header->status) === 'submitted'
+            && auth()->user()?->hasAnyRole(['keuangan', 'wadir_keuangan', 'direktur'])
+        ) {
             $header->update(['status' => 'IN_REVIEW']);
         }
 
@@ -79,14 +80,14 @@ class RkaReviewService
         $percentage = $usulanDibahas > 0 ? ($disetujuiSetelahReview / $usulanDibahas) * 100 : 0;
 
         return [
-            'usulan_awal'              => $usulanAwal,
-            'dipindahkan'              => $dipindahkan,
-            'pos_cost'                 => $postCost,
-            'adjustment_price'         => $adjustmentPriceAndVolume,
-            'tambahan_pusat'           => $tambahanPusat,
-            'usulan_dibahas'           => $usulanDibahas,
+            'usulan_awal' => $usulanAwal,
+            'dipindahkan' => $dipindahkan,
+            'pos_cost' => $postCost,
+            'adjustment_price' => $adjustmentPriceAndVolume,
+            'tambahan_pusat' => $tambahanPusat,
+            'usulan_dibahas' => $usulanDibahas,
             'disetujui_setelah_review' => $disetujuiSetelahReview,
-            'percentage'               => round($percentage, 1),
+            'percentage' => round($percentage, 1),
         ];
     }
 
@@ -122,6 +123,7 @@ class RkaReviewService
             if (in_array($status, ['APPROVED', 'ACCEPTED', 'REJECTED_WITH_ADJUSTMENT'], true)) {
                 return (float) $item->proposed_total;
             }
+
             return 0.00;
         };
 
@@ -129,8 +131,7 @@ class RkaReviewService
             $status = $item->status ?? 'PENDING';
 
             if ($status === 'REJECTED_WITH_ADJUSTMENT') {
-                $price = $item->approved_price ?? $item->unit_price;
-                return (float) ($price - $item->proposed_volume);
+                return (float) ($item->approved_total ?? 0);
             }
 
             if (in_array($status, ['APPROVED', 'ACCEPTED'], true)) {
@@ -140,46 +141,46 @@ class RkaReviewService
             return 0.00;
         };
 
-        $grandTotalUsulan   = (float) $items->sum(fn($i) => $getItemProposedAmount($i));
-        $grandTotalApproved = (float) $items->sum(fn($i) => $getItemApprovedAmount($i));
+        $grandTotalUsulan = (float) $items->sum(fn ($i) => $getItemProposedAmount($i));
+        $grandTotalApproved = (float) $items->sum(fn ($i) => $getItemApprovedAmount($i));
 
         $calculateTotals = function ($account) use (&$calculateTotals, $allAccounts, $itemsByAccount, $getItemProposedAmount, $getItemApprovedAmount, $grandTotalApproved) {
             $accItems = $itemsByAccount[$account->id] ?? collect();
 
-            $directUsulan   = (float) $accItems->sum(fn($i) => $getItemProposedAmount($i));
-            $directApproved = (float) $accItems->sum(fn($i) => $getItemApprovedAmount($i));
+            $directUsulan = (float) $accItems->sum(fn ($i) => $getItemProposedAmount($i));
+            $directApproved = (float) $accItems->sum(fn ($i) => $getItemApprovedAmount($i));
 
             $children = $allAccounts->where('parent_id', $account->id);
-            $childrenUsulan   = 0;
+            $childrenUsulan = 0;
             $childrenApproved = 0;
 
             foreach ($children as $child) {
                 $res = $calculateTotals($child);
-                $childrenUsulan   += $res['usulan'];
+                $childrenUsulan += $res['usulan'];
                 $childrenApproved += $res['approved'];
             }
 
-            $totalUsulan   = $directUsulan + $childrenUsulan;
+            $totalUsulan = $directUsulan + $childrenUsulan;
             $totalApproved = $directApproved + $childrenApproved;
-            $selisih       = $totalApproved - $totalUsulan;
-            $percentage    = $grandTotalApproved > 0 ? ($totalApproved / $grandTotalApproved) * 100 : 0;
+            $selisih = $totalApproved - $totalUsulan;
+            $percentage = $grandTotalApproved > 0 ? ($totalApproved / $grandTotalApproved) * 100 : 0;
 
             return [
-                'usulan'     => $totalUsulan,
-                'approved'   => $totalApproved,
-                'selisih'    => $selisih,
+                'usulan' => $totalUsulan,
+                'approved' => $totalApproved,
+                'selisih' => $selisih,
                 'percentage' => round($percentage, 1),
             ];
         };
 
         return [
-            'level1Accounts'     => $allAccounts->where('level', 1)->sortBy('code'),
-            'allAccounts'        => $allAccounts,
-            'itemsByAccount'     => $itemsByAccount,
-            'calculateTotals'    => $calculateTotals,
-            'grandTotalUsulan'   => $grandTotalUsulan,
+            'level1Accounts' => $allAccounts->where('level', 1)->sortBy('code'),
+            'allAccounts' => $allAccounts,
+            'itemsByAccount' => $itemsByAccount,
+            'calculateTotals' => $calculateTotals,
+            'grandTotalUsulan' => $grandTotalUsulan,
             'grandTotalApproved' => $grandTotalApproved,
-            'grandTotalSelisih'  => $grandTotalApproved - $grandTotalUsulan,
+            'grandTotalSelisih' => $grandTotalApproved - $grandTotalUsulan,
         ];
     }
 
@@ -207,18 +208,19 @@ class RkaReviewService
         $countDipangkas = $trimmedItems->count();
         $totalNilaiPemangkasan = (float) $trimmedItems->sum(function ($item) {
             $approved = (float) ($item->approved_total ?? 0);
+
             return max(0, (float) $item->proposed_total - $approved);
         });
 
         return [
-            'pagu_unit'               => $paguUnit,
-            'total_belanja_usulan'    => $totalBelanjaUsulan,
-            'total_belanja_review'    => $totalBelanjaReview,
-            'sisa_pagu_usulan'        => $sisaPaguUsulan,
-            'sisa_pagu_review'        => $sisaPaguReview,
-            'status_usulan'           => $statusUsulan,
-            'status_review'           => $statusReview,
-            'count_dipangkas'         => $countDipangkas,
+            'pagu_unit' => $paguUnit,
+            'total_belanja_usulan' => $totalBelanjaUsulan,
+            'total_belanja_review' => $totalBelanjaReview,
+            'sisa_pagu_usulan' => $sisaPaguUsulan,
+            'sisa_pagu_review' => $sisaPaguReview,
+            'status_usulan' => $statusUsulan,
+            'status_review' => $statusReview,
+            'count_dipangkas' => $countDipangkas,
             'total_nilai_pemangkasan' => $totalNilaiPemangkasan,
         ];
     }
@@ -238,9 +240,9 @@ class RkaReviewService
         ];
 
         $rekap = [];
-        $totalUsulanAwal   = 0;
+        $totalUsulanAwal = 0;
         $totalUsulanReview = 0;
-        $totalApproved     = 0;
+        $totalApproved = 0;
 
         $record->loadMissing(['items.account', 'adjustments']);
 
@@ -263,31 +265,31 @@ class RkaReviewService
             });
 
             $inReviewItems = $categoryItems->whereIn('status', ['APPROVED', 'REJECTED_WITH_ADJUSTMENT', 'REJECTED']);
-            $usulanReview  = $inReviewItems->sum('proposed_total');
-            $approved      = $categoryItems->sum('approved_total');
+            $usulanReview = $inReviewItems->sum('proposed_total');
+            $approved = $categoryItems->sum('approved_total');
 
             $pct = $usulanReview > 0 ? ($approved / $usulanReview) * 100 : 0;
 
-            $totalUsulanAwal   += $usulanAwal;
+            $totalUsulanAwal += $usulanAwal;
             $totalUsulanReview += $usulanReview;
-            $totalApproved     += $approved;
+            $totalApproved += $approved;
 
             $rekap[] = [
-                'code'          => $code,
-                'label'         => $label,
-                'usulan'        => $usulanAwal,
+                'code' => $code,
+                'label' => $label,
+                'usulan' => $usulanAwal,
                 'usulan_review' => $usulanReview,
-                'approved'      => $approved,
-                'percentage'    => round($pct, 1),
+                'approved' => $approved,
+                'percentage' => round($pct, 1),
             ];
         }
 
         return [
-            'items'               => $rekap,
-            'total_usulan'        => $totalUsulanAwal,
+            'items' => $rekap,
+            'total_usulan' => $totalUsulanAwal,
             'total_usulan_review' => $totalUsulanReview,
-            'total_approved'      => $totalApproved,
-            'total_percentage'    => $totalUsulanReview > 0 ? round(($totalApproved / $totalUsulanReview) * 100, 1) : 0,
+            'total_approved' => $totalApproved,
+            'total_percentage' => $totalUsulanReview > 0 ? round(($totalApproved / $totalUsulanReview) * 100, 1) : 0,
         ];
     }
 
@@ -298,12 +300,12 @@ class RkaReviewService
     {
         if (! $activeIndicatorTab) {
             return [
-                'level1Accounts'         => collect(),
-                'allAccounts'            => collect(),
-                'itemsByAccount'         => collect(),
-                'calculateAccountTotals' => fn() => ['usulan' => 0, 'approved' => 0],
-                'totalUsulan'            => 0,
-                'totalApproved'          => 0,
+                'level1Accounts' => collect(),
+                'allAccounts' => collect(),
+                'itemsByAccount' => collect(),
+                'calculateAccountTotals' => fn () => ['usulan' => 0, 'approved' => 0],
+                'totalUsulan' => 0,
+                'totalApproved' => 0,
             ];
         }
 
@@ -346,19 +348,19 @@ class RkaReviewService
             }
 
             return [
-                'usulan'   => $directUsulan + $childrenUsulan,
+                'usulan' => $directUsulan + $childrenUsulan,
                 'approved' => $directApproved + $childrenApproved,
             ];
         };
 
         return [
-            'level1Accounts'         => $allAccounts->where('level', 1)->sortBy('code'),
-            'allAccounts'            => $allAccounts,
-            'itemsByAccount'         => $itemsByAccount,
+            'level1Accounts' => $allAccounts->where('level', 1)->sortBy('code'),
+            'allAccounts' => $allAccounts,
+            'itemsByAccount' => $itemsByAccount,
             'calculateAccountTotals' => $calculateAccountTotals,
-            'totalUsulan'            => $items->sum('proposed_total'),
+            'totalUsulan' => $items->sum('proposed_total'),
             'totalUsulanAfterReview' => $items->sum('proposed_total'),
-            'totalApproved'          => $items->sum('approved_total'),
+            'totalApproved' => $items->sum('approved_total'),
         ];
     }
 
@@ -369,35 +371,39 @@ class RkaReviewService
     {
         DB::transaction(function () use ($record, $data, $arguments) {
             $itemId = $data['item_id'] ?? $arguments['item_id'] ?? null;
-            $item = RkaItem::findOrFail($itemId);
+            $item = RkaItem::where('rka_header_id', $record->id)->findOrFail($itemId);
             $actionType = $data['action_type'];
 
+            $originalProposedVolume = (float) $item->proposed_volume;
+            $originalUnitPrice = (float) $item->unit_price;
+            $originalProposedTotal = $originalProposedVolume * $originalUnitPrice;
+
             if ($actionType === 'REJECTED') {
-                $newUnitPrice = $item->unit_price;
+                $newUnitPrice = $originalUnitPrice;
             } else {
-                $newUnitPrice = ! empty($data['approved_price']) ? (float) $data['approved_price'] : $item->unit_price;
+                $newUnitPrice = ! empty($data['approved_price']) ? (float) $data['approved_price'] : $originalUnitPrice;
             }
 
-            $newProposedTotal = $item->proposed_volume - $newUnitPrice;
-            $isTrimmed = ($actionType !== 'APPROVED') || ((float) $data['approved_total'] < $newProposedTotal);
+            $approvedVolume = $actionType === 'APPROVED' ? (float) ($data['approved_volume'] ?? 0) : 0;
+            $approvedTotal = $actionType === 'APPROVED'
+                ? (float) ($data['approved_total'] ?? ($approvedVolume * $newUnitPrice))
+                : 0;
+
+            $isTrimmed = ($actionType !== 'APPROVED') || ($approvedTotal < $originalProposedTotal);
 
             $item->update([
-                'unit_price'      => $newUnitPrice,
-                'proposed_total'  => $newProposedTotal,
-                'proposed_volume' => $actionType === 'APPROVED' || $actionType === 'MOVED' ? $data['approved_volume'] : 0,
-                'approved_volume' => $actionType === 'APPROVED' ? $data['approved_volume'] : 0,
-                'approved_total'  => $actionType === 'APPROVED' ? $data['approved_total'] : 0,
-                'approved_price'  => $newUnitPrice,
-                'unit_symbol'     => $data['unit_symbol'] ?? $item->unit_symbol,
-                'review_notes'    => $data['review_notes'],
-                'price_trimed'    => $isTrimmed ? $newUnitPrice : 0,
-                'is_trimmed'      => $isTrimmed,
-                'status'          => $actionType,
+                'approved_volume' => $approvedVolume,
+                'approved_total' => $approvedTotal,
+                'unit_symbol' => $data['unit_symbol'] ?? $item->unit_symbol,
+                'review_notes' => $data['review_notes'] ?? null,
+                'price_trimed' => $isTrimmed ? $newUnitPrice : 0,
+                'is_trimmed' => $isTrimmed,
+                'status' => $actionType,
             ]);
 
-            $proposedVolume         = $item->proposed_volume;
-            $unitSymbol             = $data['unit_symbol'] ?? $item->unit_symbol ?? 'Satuan';
-            $adjustedProposedAmount = $proposedVolume - $newUnitPrice;
+            $proposedVolume = $originalProposedVolume;
+            $unitSymbol = $data['unit_symbol'] ?? $item->unit_symbol ?? 'Satuan';
+            $adjustedProposedAmount = $originalProposedTotal;
 
             if ($actionType !== 'APPROVED') {
                 if ($actionType === 'MOVED') {
@@ -406,24 +412,24 @@ class RkaReviewService
                     RkaAdjustment::updateOrCreate(
                         [
                             'rka_header_id' => $record->id,
-                            'rka_item_id'   => $item->id,
-                            'section_type'  => 'A',
+                            'rka_item_id' => $item->id,
+                            'section_type' => 'A',
                         ],
                         [
-                            'rka_indicator_id'    => $item->rka_indicator_id,
-                            'account_id'          => $item->account_id,
-                            'section_name'        => 'Penyesuaian Unit Asal (Dialihkan)',
-                            'action_type'         => 'MOVED',
-                            'description'         => $item->description,
+                            'rka_indicator_id' => $item->rka_indicator_id,
+                            'account_id' => $item->account_id,
+                            'section_name' => 'Penyesuaian Unit Asal (Dialihkan)',
+                            'action_type' => 'MOVED',
+                            'description' => $item->description,
                             'destination_unit_id' => $destinationUnitId,
-                            'target_unit_id'      => null,
-                            'proposed_volume'     => $proposedVolume,
-                            'unit_symbol'         => $unitSymbol,
-                            'unit_price'          => $newUnitPrice,
-                            'proposed_amount'     => $adjustedProposedAmount,
-                            'approved_amount'     => 0,
-                            'notes'               => $data['review_notes'],
-                            'adjusted_by'         => Auth::id(),
+                            'target_unit_id' => null,
+                            'proposed_volume' => $proposedVolume,
+                            'unit_symbol' => $unitSymbol,
+                            'unit_price' => $newUnitPrice,
+                            'proposed_amount' => $adjustedProposedAmount,
+                            'approved_amount' => 0,
+                            'notes' => $data['review_notes'],
+                            'adjusted_by' => Auth::id(),
                         ]
                     );
 
@@ -437,24 +443,24 @@ class RkaReviewService
                             RkaAdjustment::updateOrCreate(
                                 [
                                     'rka_header_id' => $targetRkaHeader->id,
-                                    'rka_item_id'   => $item->id,
-                                    'section_type'  => 'B',
+                                    'rka_item_id' => $item->id,
+                                    'section_type' => 'B',
                                 ],
                                 [
-                                    'rka_indicator_id'    => null,
-                                    'account_id'          => $item->account_id,
-                                    'section_name'        => 'Penyesuaian Unit Pengelola',
-                                    'action_type'         => 'MOVED',
-                                    'description'         => $item->description,
+                                    'rka_indicator_id' => null,
+                                    'account_id' => $item->account_id,
+                                    'section_name' => 'Penyesuaian Unit Pengelola',
+                                    'action_type' => 'MOVED',
+                                    'description' => $item->description,
                                     'destination_unit_id' => null,
-                                    'target_unit_id'      => $record->department_id,
-                                    'proposed_volume'     => $proposedVolume,
-                                    'unit_symbol'         => $unitSymbol,
-                                    'unit_price'          => $newUnitPrice,
-                                    'proposed_amount'     => $adjustedProposedAmount,
-                                    'approved_amount'     => $data['approved_total'],
-                                    'notes'               => $data['review_notes'],
-                                    'adjusted_by'         => Auth::id(),
+                                    'target_unit_id' => $record->department_id,
+                                    'proposed_volume' => $proposedVolume,
+                                    'unit_symbol' => $unitSymbol,
+                                    'unit_price' => $newUnitPrice,
+                                    'proposed_amount' => $adjustedProposedAmount,
+                                    'approved_amount' => $data['approved_total'],
+                                    'notes' => $data['review_notes'],
+                                    'adjusted_by' => Auth::id(),
                                 ]
                             );
                         }
@@ -471,24 +477,24 @@ class RkaReviewService
                     RkaAdjustment::updateOrCreate(
                         [
                             'rka_header_id' => $record->id,
-                            'rka_item_id'   => $item->id,
-                            'section_type'  => $sectionType,
+                            'rka_item_id' => $item->id,
+                            'section_type' => $sectionType,
                         ],
                         [
-                            'rka_indicator_id'    => $item->rka_indicator_id,
-                            'account_id'          => $item->account_id,
-                            'section_name'        => $sectionName,
-                            'action_type'         => $actionType,
-                            'description'         => $item->description,
+                            'rka_indicator_id' => $item->rka_indicator_id,
+                            'account_id' => $item->account_id,
+                            'section_name' => $sectionName,
+                            'action_type' => $actionType,
+                            'description' => $item->description,
                             'destination_unit_id' => null,
-                            'target_unit_id'      => null,
-                            'proposed_volume'     => $proposedVolume,
-                            'unit_symbol'         => $unitSymbol,
-                            'unit_price'          => $newUnitPrice,
-                            'proposed_amount'     => $adjustedProposedAmount,
-                            'approved_amount'     => in_array($actionType, $rejectedStatuses) ? 0 : ($data['approved_total'] ?? 0),
-                            'notes'               => $data['review_notes'],
-                            'adjusted_by'         => Auth::id(),
+                            'target_unit_id' => null,
+                            'proposed_volume' => $proposedVolume,
+                            'unit_symbol' => $unitSymbol,
+                            'unit_price' => $newUnitPrice,
+                            'proposed_amount' => $adjustedProposedAmount,
+                            'approved_amount' => in_array($actionType, $rejectedStatuses) ? 0 : ($data['approved_total'] ?? 0),
+                            'notes' => $data['review_notes'],
+                            'adjusted_by' => Auth::id(),
                         ]
                     );
                 }
@@ -540,25 +546,25 @@ class RkaReviewService
                     'id' => $adjustment->imported_rka_item_id,
                 ],
                 [
-                    'rka_header_id'    => $record->id,
+                    'rka_header_id' => $record->id,
                     'rka_indicator_id' => $rkaIndicatorId,
-                    'account_id'       => $adjustment->account_id,
-                    'description'      => $adjustment->description,
-                    'proposed_volume'  => $adjustment->proposed_volume,
-                    'unit_symbol'      => $adjustment->unit_symbol,
-                    'unit_price'       => $adjustment->unit_price,
-                    'proposed_total'   => $adjustment->proposed_amount,
-                    'approved_volume'  => $adjustment->proposed_volume,
-                    'approved_total'   => $adjustment->approved_amount,
-                    'review_notes'     => $adjustment->notes ?? 'Hasil limpahan / adjustment Section B',
-                    'status'           => 'APPROVED',
-                    'is_trimmed'       => false,
-                    'is_imported'      => true,
+                    'account_id' => $adjustment->account_id,
+                    'description' => $adjustment->description,
+                    'proposed_volume' => $adjustment->proposed_volume,
+                    'unit_symbol' => $adjustment->unit_symbol,
+                    'unit_price' => $adjustment->unit_price,
+                    'proposed_total' => $adjustment->proposed_amount,
+                    'approved_volume' => $adjustment->proposed_volume,
+                    'approved_total' => $adjustment->approved_amount,
+                    'review_notes' => $adjustment->notes ?? 'Hasil limpahan / adjustment Section B',
+                    'status' => 'APPROVED',
+                    'is_trimmed' => false,
+                    'is_imported' => true,
                 ]
             );
 
             $adjustment->update([
-                'is_imported'          => true,
+                'is_imported' => true,
                 'imported_rka_item_id' => $newItem->id,
             ]);
 
@@ -576,15 +582,17 @@ class RkaReviewService
     public function bulkApproveItems(RkaHeader $record, array $selectedItemIds): void
     {
         DB::transaction(function () use ($record, $selectedItemIds) {
-            $items = RkaItem::whereIn('id', $selectedItemIds)->get();
+            $items = RkaItem::where('rka_header_id', $record->id)
+                ->whereIn('id', $selectedItemIds)
+                ->get();
             $affectedIndicatorIds = [];
 
             foreach ($items as $item) {
                 $item->update([
                     'approved_volume' => $item->proposed_volume,
-                    'approved_total'  => $item->proposed_total,
-                    'is_trimmed'      => false,
-                    'status'          => 'APPROVED',
+                    'approved_total' => $item->proposed_total,
+                    'is_trimmed' => false,
+                    'status' => 'APPROVED',
                 ]);
 
                 RkaAdjustment::where('rka_item_id', $item->id)->delete();
@@ -612,43 +620,45 @@ class RkaReviewService
                 ->where('setting_id', $record->setting_id)
                 ->first();
 
-            $items = RkaItem::whereIn('id', $selectedItemIds)->get();
+            $items = RkaItem::where('rka_header_id', $record->id)
+                ->whereIn('id', $selectedItemIds)
+                ->get();
             $affectedIndicatorIds = [];
 
             foreach ($items as $item) {
                 $item->update([
                     'approved_volume' => 0,
-                    'approved_total'  => 0,
-                    'review_notes'    => $reviewNotes,
-                    'is_trimmed'      => true,
-                    'status'          => 'MOVED',
+                    'approved_total' => 0,
+                    'review_notes' => $reviewNotes,
+                    'is_trimmed' => true,
+                    'status' => 'MOVED',
                 ]);
 
                 $proposedVolume = $item->proposed_volume;
-                $unitSymbol     = $item->unit_symbol ?? $item->unit ?? 'Satuan';
-                $unitPrice      = $item->unit_price;
+                $unitSymbol = $item->unit_symbol ?? $item->unit ?? 'Satuan';
+                $unitPrice = $item->unit_price;
 
                 RkaAdjustment::updateOrCreate(
                     [
                         'rka_header_id' => $record->id,
-                        'rka_item_id'   => $item->id,
-                        'section_type'  => 'A',
+                        'rka_item_id' => $item->id,
+                        'section_type' => 'A',
                     ],
                     [
-                        'rka_indicator_id'    => $item->rka_indicator_id,
-                        'account_id'          => $item->account_id,
-                        'section_name'        => 'Penyesuaian Unit Asal',
-                        'action_type'         => 'MOVED',
-                        'description'         => $item->description,
+                        'rka_indicator_id' => $item->rka_indicator_id,
+                        'account_id' => $item->account_id,
+                        'section_name' => 'Penyesuaian Unit Asal',
+                        'action_type' => 'MOVED',
+                        'description' => $item->description,
                         'destination_unit_id' => $destinationUnitId,
-                        'target_unit_id'      => null,
-                        'proposed_volume'     => $proposedVolume,
-                        'unit_symbol'         => $unitSymbol,
-                        'unit_price'          => $unitPrice,
-                        'proposed_amount'     => $item->proposed_total,
-                        'approved_amount'     => 0,
-                        'notes'               => $reviewNotes,
-                        'adjusted_by'         => $authUserId,
+                        'target_unit_id' => null,
+                        'proposed_volume' => $proposedVolume,
+                        'unit_symbol' => $unitSymbol,
+                        'unit_price' => $unitPrice,
+                        'proposed_amount' => $item->proposed_total,
+                        'approved_amount' => 0,
+                        'notes' => $reviewNotes,
+                        'adjusted_by' => $authUserId,
                     ]
                 );
 
@@ -656,24 +666,24 @@ class RkaReviewService
                     RkaAdjustment::updateOrCreate(
                         [
                             'rka_header_id' => $targetRkaHeader->id,
-                            'rka_item_id'   => $item->id,
-                            'section_type'  => 'B',
+                            'rka_item_id' => $item->id,
+                            'section_type' => 'B',
                         ],
                         [
-                            'rka_indicator_id'    => null,
-                            'account_id'          => $item->account_id,
-                            'section_name'        => 'Penyesuaian Unit Pengelola',
-                            'action_type'         => 'MOVED',
-                            'description'         => $item->description,
+                            'rka_indicator_id' => null,
+                            'account_id' => $item->account_id,
+                            'section_name' => 'Penyesuaian Unit Pengelola',
+                            'action_type' => 'MOVED',
+                            'description' => $item->description,
                             'destination_unit_id' => null,
-                            'target_unit_id'      => $record->department_id,
-                            'proposed_volume'     => $proposedVolume,
-                            'unit_symbol'         => $unitSymbol,
-                            'unit_price'          => $unitPrice,
-                            'proposed_amount'     => $item->proposed_total,
-                            'approved_amount'     => $item->proposed_total,
-                            'notes'               => $reviewNotes,
-                            'adjusted_by'         => $authUserId,
+                            'target_unit_id' => $record->department_id,
+                            'proposed_volume' => $proposedVolume,
+                            'unit_symbol' => $unitSymbol,
+                            'unit_price' => $unitPrice,
+                            'proposed_amount' => $item->proposed_total,
+                            'approved_amount' => $item->proposed_total,
+                            'notes' => $reviewNotes,
+                            'adjusted_by' => $authUserId,
                         ]
                     );
                 }
@@ -695,19 +705,19 @@ class RkaReviewService
     public function addAdjustment(RkaHeader $record, ?string $activeIndicatorTab, array $data): RkaAdjustment
     {
         return RkaAdjustment::create([
-            'rka_header_id'       => $record->id,
-            'rka_indicator_id'    => $activeIndicatorTab,
-            'section_type'        => $data['section_type'],
-            'section_name'        => $data['section_type'] === 'A' ? 'Penyesuaian Unit Asal' : 'Penyesuaian Unit Pengelola',
-            'action_type'         => $data['action_type'],
-            'account_id'          => $data['account_id'],
-            'description'         => $data['description'],
+            'rka_header_id' => $record->id,
+            'rka_indicator_id' => $activeIndicatorTab,
+            'section_type' => $data['section_type'],
+            'section_name' => $data['section_type'] === 'A' ? 'Penyesuaian Unit Asal' : 'Penyesuaian Unit Pengelola',
+            'action_type' => $data['action_type'],
+            'account_id' => $data['account_id'],
+            'description' => $data['description'],
             'destination_unit_id' => $data['destination_unit_id'] ?? null,
-            'target_unit_id'      => $data['target_unit_id'] ?? null,
-            'proposed_amount'     => $data['proposed_amount'],
-            'approved_amount'     => $data['approved_amount'],
-            'notes'               => $data['notes'] ?? null,
-            'adjusted_by'         => Auth::id(),
+            'target_unit_id' => $data['target_unit_id'] ?? null,
+            'proposed_amount' => $data['proposed_amount'],
+            'approved_amount' => $data['approved_amount'],
+            'notes' => $data['notes'] ?? null,
+            'adjusted_by' => Auth::id(),
         ]);
     }
 

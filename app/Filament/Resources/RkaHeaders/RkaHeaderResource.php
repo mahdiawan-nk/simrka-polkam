@@ -5,8 +5,8 @@ namespace App\Filament\Resources\RkaHeaders;
 use App\Filament\Resources\RkaHeaders\Pages\CreateRkaHeader;
 use App\Filament\Resources\RkaHeaders\Pages\EditRkaHeader;
 use App\Filament\Resources\RkaHeaders\Pages\ListRkaHeaders;
-use App\Filament\Resources\RkaHeaders\Pages\RkaFormIndicatorAndItem;
 use App\Filament\Resources\RkaHeaders\Pages\ReviewRkaPage;
+use App\Filament\Resources\RkaHeaders\Pages\RkaFormIndicatorAndItem;
 use App\Filament\Resources\RkaHeaders\Schemas\RkaHeaderForm;
 use App\Filament\Resources\RkaHeaders\Tables\RkaHeadersTable;
 use App\Models\RkaHeader;
@@ -22,8 +22,11 @@ class RkaHeaderResource extends Resource
     protected static ?string $model = RkaHeader::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentDuplicate;
-    protected static string | UnitEnum | null $navigationGroup = 'Manajeman RKA';
+
+    protected static string|UnitEnum|null $navigationGroup = 'Manajemen RKA';
+
     protected static ?string $navigationLabel = 'Pengusulan & Review RKA';
+
     public static function form(Schema $schema): Schema
     {
         return RkaHeaderForm::configure($schema);

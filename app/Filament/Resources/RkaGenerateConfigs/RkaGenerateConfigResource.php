@@ -22,8 +22,11 @@ class RkaGenerateConfigResource extends Resource
     protected static ?string $model = RkaGenerateConfig::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedAdjustmentsHorizontal;
-    protected static string | UnitEnum | null $navigationGroup = 'Manajeman RKA';
+
+    protected static string|UnitEnum|null $navigationGroup = 'Manajemen RKA';
+
     protected static ?string $navigationLabel = 'Konfigurasi Generate RKA';
+
     public static function form(Schema $schema): Schema
     {
         return RkaGenerateConfigForm::configure($schema);

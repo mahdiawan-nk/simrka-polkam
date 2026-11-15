@@ -4,19 +4,21 @@ namespace App\Filament\Widgets;
 
 use App\Models\DepartmentBudget;
 use App\Models\FundRequest;
+use App\Models\RkaSchedule;
+use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Carbon;
-use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
 
 class SuperAdminStatsOverview extends BaseWidget
 {
     use HasWidgetShield;
+
     protected static ?int $sort = 1;
 
     protected function getStats(): array
     {
-        $currentFiscalYear = '2026/2027'; // Sesuaikan logika penentuan fiscal_year aktif
+        $currentFiscalYear = RkaSchedule::currentFiscalYear();
 
         // 1. Total Pagu Anggaran Kampus
         $totalBudget = DepartmentBudget::where('fiscal_year', $currentFiscalYear)
@@ -37,17 +39,17 @@ class SuperAdminStatsOverview extends BaseWidget
             ->count();
 
         return [
-            Stat::make('Total Pagu Anggaran Kampus', 'Rp ' . number_format($totalBudget, 2, ',', '.'))
+            Stat::make('Total Pagu Anggaran Kampus', 'Rp '.number_format($totalBudget, 2, ',', '.'))
                 ->description("Tahun Anggaran {$currentFiscalYear}")
                 ->descriptionIcon('heroicon-m-banknotes')
                 ->color('info'),
 
-            Stat::make('Total Realisasi Dana', 'Rp ' . number_format($totalApproved, 2, ',', '.'))
+            Stat::make('Total Realisasi Dana', 'Rp '.number_format($totalApproved, 2, ',', '.'))
                 ->description('Pengajuan Berstatus Approved')
                 ->descriptionIcon('heroicon-m-check-circle')
                 ->color('success'),
 
-            Stat::make('Sisa Anggaran Kampus', 'Rp ' . number_format($remainingBudget, 2, ',', '.'))
+            Stat::make('Sisa Anggaran Kampus', 'Rp '.number_format($remainingBudget, 2, ',', '.'))
                 ->description('Sisa Pagu yang Dapat Digunakan')
                 ->descriptionIcon('heroicon-m-scale')
                 ->color($remainingBudget < 0 ? 'danger' : 'warning'),

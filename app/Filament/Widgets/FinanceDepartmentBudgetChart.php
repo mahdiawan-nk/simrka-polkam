@@ -5,21 +5,23 @@ namespace App\Filament\Widgets;
 use App\Models\Department;
 use App\Models\DepartmentBudget;
 use App\Models\FundRequest;
-use Filament\Widgets\ChartWidget;
+use App\Models\RkaSchedule;
 use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
+use Filament\Widgets\ChartWidget;
 
 class FinanceDepartmentBudgetChart extends ChartWidget
 {
     use HasWidgetShield;
+
     protected ?string $heading = 'Komparasi Alokasi Pagu vs Realisasi per Departemen';
 
     protected static ?int $sort = 3;
 
-    protected int | string | array $columnSpan = 1;
+    protected int|string|array $columnSpan = 1;
 
     protected function getData(): array
     {
-        $currentFiscalYear = '2026/2027';
+        $currentFiscalYear = RkaSchedule::currentFiscalYear();
         $departments = Department::whereHas('budgets', function ($q) use ($currentFiscalYear) {
             $q->where('fiscal_year', $currentFiscalYear);
         })->get();

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+
 class RkaItem extends Model
 {
     use HasFactory;
@@ -49,32 +50,37 @@ class RkaItem extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'rka_header_id'    => 'integer',
+        'rka_header_id' => 'integer',
         'rka_indicator_id' => 'integer',
-        'account_id'       => 'integer',
-        'proposed_volume'  => 'decimal:2',
-        'unit_price'       => 'decimal:2',
-        'proposed_total'   => 'decimal:2',
-        'approved_volume'  => 'decimal:2',
-        'approved_total'   => 'decimal:2',
-        'is_trimmed'       => 'boolean',
-        'price_trimed'    => 'decimal:2',
-        'is_imported'       => 'boolean',
-        'created_at'       => 'datetime',
-        'updated_at'       => 'datetime',
+        'account_id' => 'integer',
+        'proposed_volume' => 'decimal:2',
+        'unit_price' => 'decimal:2',
+        'proposed_total' => 'decimal:2',
+        'approved_volume' => 'decimal:2',
+        'approved_total' => 'decimal:2',
+        'is_trimmed' => 'boolean',
+        'price_trimed' => 'decimal:2',
+        'is_imported' => 'boolean',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
 
     /**
      * Constants untuk Status Review Item Belanja.
      */
-    public const STATUS_PENDING  = 'PENDING';
+    public const STATUS_PENDING = 'PENDING';
+
+    public const STATUS_APPROVED = 'APPROVED';
+
     public const STATUS_ACCEPTED = 'ACCEPTED';
-    public const STATUS_REDUCED  = 'REDUCED';
+
+    public const STATUS_REDUCED = 'REDUCED';
+
     public const STATUS_REJECTED = 'REJECTED';
 
-   /* =========================================================================
-     | RELATIONS
-     | ========================================================================= */
+    /* =========================================================================
+      | RELATIONS
+      | ========================================================================= */
 
     /**
      * Relasi ke Header RKA Unit.

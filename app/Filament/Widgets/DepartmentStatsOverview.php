@@ -4,18 +4,20 @@ namespace App\Filament\Widgets;
 
 use App\Models\DepartmentBudget;
 use App\Models\FundRequest;
+use App\Models\RkaSchedule;
 use App\Services\Context\Contracts\ContextManagerInterface;
-use Filament\Widgets\Widget;
 use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
+use Filament\Widgets\Widget;
 
 class DepartmentStatsOverview extends Widget
 {
     use HasWidgetShield;
+
     protected string $view = 'filament.widgets.department-stats-overview';
 
     protected static ?int $sort = 1;
 
-    protected int | string | array $columnSpan = 'full';
+    protected int|string|array $columnSpan = 'full';
 
     protected function getViewData(): array
     {
@@ -23,13 +25,13 @@ class DepartmentStatsOverview extends Widget
         $contextManager = app(ContextManagerInterface::class);
         $activeDept = $contextManager->getActiveDepartment();
 
-        if (!$activeDept) {
+        if (! $activeDept) {
             return [
                 'hasDepartment' => false,
             ];
         }
 
-        $currentFiscalYear = '2026/2027'; // Sesuaikan logika penentuan fiscal_year aktif
+        $currentFiscalYear = RkaSchedule::currentFiscalYear();
 
         // 1. Pagu Anggaran Unit
         $allocatedAmount = DepartmentBudget::where('department_id', $activeDept->id)

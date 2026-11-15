@@ -5,28 +5,30 @@ namespace App\Filament\Widgets;
 use App\Models\Department;
 use App\Models\DepartmentBudget;
 use App\Models\FundRequest;
+use App\Models\RkaSchedule;
+use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
-use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
 
 class WadirDepartmentUtilizationTable extends BaseWidget
 {
     use HasWidgetShield;
+
     protected static ?int $sort = 3;
 
-    protected int | string | array $columnSpan = 'full';
+    protected int|string|array $columnSpan = 'full';
 
     protected static ?string $heading = 'Department Budget Utilization Table (Laporan Penyerapan Anggaran Unit)';
 
     public function table(Table $table): Table
     {
-        $currentFiscalYear = '2026/2027';
+        $currentFiscalYear = RkaSchedule::currentFiscalYear();
 
         return $table
             ->query(
                 Department::query()
-                    ->whereHas('budgets', fn($q) => $q->where('fiscal_year', $currentFiscalYear))
+                    ->whereHas('budgets', fn ($q) => $q->where('fiscal_year', $currentFiscalYear))
             )
             ->paginated(false)
             ->columns([
@@ -41,7 +43,8 @@ class WadirDepartmentUtilizationTable extends BaseWidget
                         $pagu = DepartmentBudget::where('department_id', $state)
                             ->where('fiscal_year', $currentFiscalYear)
                             ->sum('allocated_amount');
-                        return 'Rp ' . number_format($pagu, 2, ',', '.');
+
+                        return 'Rp '.number_format($pagu, 2, ',', '.');
                     })
                     ->alignment('right')
                     ->fontFamily('mono'),
@@ -53,7 +56,8 @@ class WadirDepartmentUtilizationTable extends BaseWidget
                             ->where('fiscal_year', $currentFiscalYear)
                             ->where('status', 'approved')
                             ->sum('total_approved');
-                        return 'Rp ' . number_format($approved, 2, ',', '.');
+
+                        return 'Rp '.number_format($approved, 2, ',', '.');
                     })
                     ->alignment('right')
                     ->fontFamily('mono')
@@ -66,7 +70,8 @@ class WadirDepartmentUtilizationTable extends BaseWidget
                             ->where('fiscal_year', $currentFiscalYear)
                             ->whereIn('status', ['submitted', 'verified_kabakku', 'verified_wadir_bakku'])
                             ->sum('total_requested');
-                        return 'Rp ' . number_format($pending, 2, ',', '.');
+
+                        return 'Rp '.number_format($pending, 2, ',', '.');
                     })
                     ->alignment('right')
                     ->fontFamily('mono')
@@ -88,7 +93,8 @@ class WadirDepartmentUtilizationTable extends BaseWidget
                             ->sum('total_requested');
 
                         $remaining = $pagu - ($approved + $pending);
-                        return 'Rp ' . number_format($remaining, 2, ',', '.');
+
+                        return 'Rp '.number_format($remaining, 2, ',', '.');
                     })
                     ->alignment('right')
                     ->fontFamily('mono'),
@@ -105,7 +111,8 @@ class WadirDepartmentUtilizationTable extends BaseWidget
                             ->sum('total_approved');
 
                         $percentage = $pagu > 0 ? round(($approved / $pagu) * 100, 1) : 0;
-                        return $percentage . '%';
+
+                        return $percentage.'%';
                     })
                     ->badge()
                     ->color(function ($record) use ($currentFiscalYear) {

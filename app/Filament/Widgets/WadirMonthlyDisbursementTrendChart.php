@@ -3,23 +3,25 @@
 namespace App\Filament\Widgets;
 
 use App\Models\FundRequest;
+use App\Models\RkaSchedule;
+use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
 use Filament\Widgets\ChartWidget;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
 
 class WadirMonthlyDisbursementTrendChart extends ChartWidget
 {
     use HasWidgetShield;
+
     protected ?string $heading = 'Monthly Disbursement Trend (Tren Pencairan Dana Bulanan)';
 
     protected static ?int $sort = 4;
 
-    protected int | string | array $columnSpan = 'full';
+    protected int|string|array $columnSpan = 'full';
 
     protected function getData(): array
     {
-        $currentFiscalYear = '2026/2027';
+        $currentFiscalYear = RkaSchedule::currentFiscalYear();
 
         // Mengambil total realisasi approved per bulan untuk tahun berjalan
         $monthlyData = FundRequest::query()

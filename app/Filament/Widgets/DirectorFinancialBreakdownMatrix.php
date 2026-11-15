@@ -3,24 +3,25 @@
 namespace App\Filament\Widgets;
 
 use App\Models\Account;
-use App\Services\Context\Contracts\ContextManagerInterface;
+use App\Models\RkaSchedule;
+use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
-use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
 
 class DirectorFinancialBreakdownMatrix extends BaseWidget
 {
     use HasWidgetShield;
+
     protected static ?int $sort = 4;
 
-    protected int | string | array $columnSpan = 1;
+    protected int|string|array $columnSpan = 1;
 
     protected static ?string $heading = 'Finansial Breakdown Matrix (By Account Type)';
 
     public function table(Table $table): Table
     {
-        $currentFiscalYear = '2026/2027';
+        $currentFiscalYear = RkaSchedule::currentFiscalYear();
 
         return $table
             ->query(

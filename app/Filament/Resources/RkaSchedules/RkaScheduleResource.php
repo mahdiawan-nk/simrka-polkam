@@ -20,8 +20,11 @@ class RkaScheduleResource extends Resource
     protected static ?string $model = RkaSchedule::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCalendarDays;
-    protected static string | UnitEnum | null $navigationGroup = 'Manajeman RKA';
+
+    protected static string|UnitEnum|null $navigationGroup = 'Manajemen RKA';
+
     protected static ?string $navigationLabel = 'Jadwal Pengusulan RKA';
+
     public static function form(Schema $schema): Schema
     {
         return RkaScheduleForm::configure($schema);

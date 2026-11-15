@@ -6,18 +6,16 @@ use App\Filament\Resources\RkaHeaders\Schemas\AddItemForm;
 use App\Filament\Resources\RkaHeaders\Schemas\AddProgramForm;
 use App\Filament\Resources\RkaHeaders\Schemas\EditItemForm;
 use App\Filament\Resources\RkaHeaders\Schemas\ImportExcelForm;
-use App\Imports\RkaImportFormatExcel;
 use App\Imports\RkaItemsImport;
 use App\Models\RkaHeader;
 use App\Models\RkaIndicator;
 use App\Models\RkaItem;
+use App\Services\RkaApprovalService;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
-use App\Services\RkaItemService;
-use App\Services\RkaApprovalService;
 
 class RkaActions
 {
@@ -37,9 +35,8 @@ class RkaActions
             )
             ->modalSubmitActionLabel('Ya, Submit')
             ->hidden(
-                fn (): bool =>
-                    $page->record->is_locked ||
-                    $page->record->rka_status === 'submitted'
+                fn (): bool => $page->record->is_locked ||
+                    strtolower((string) $page->record->status) === 'submitted'
             )
             ->action(function (RkaApprovalService $service) use ($page): void {
                 $service->submitByPemohon(
@@ -72,8 +69,7 @@ class RkaActions
             ->slideOver()
             ->modalWidth('4xl')
             ->form(
-                fn (Schema $schema): Schema =>
-                    AddProgramForm::configure($schema)
+                fn (Schema $schema): Schema => AddProgramForm::configure($schema)
             )
             ->action(function (array $data) use ($page): void {
                 $indicator = RkaIndicator::create([
@@ -107,11 +103,10 @@ class RkaActions
             ->modalHeading('Tambah Item Belanja RKA')
             ->modalWidth('2xl')
             ->form(
-                fn (Schema $schema): Schema =>
-                    AddItemForm::configure(
-                        $schema,
-                        $page->activeTabGroup,
-                    )
+                fn (Schema $schema): Schema => AddItemForm::configure(
+                    $schema,
+                    $page->activeTabGroup,
+                )
             )
             ->action(function (array $data) use ($page): void {
                 $indicator = RkaIndicator::query()
@@ -154,15 +149,13 @@ class RkaActions
             ->modalHeading('Edit Item Belanja RKA')
             ->modalWidth('2xl')
             ->fillForm(
-                fn (array $arguments): array =>
-                    RkaItem::query()
-                        ->where('rka_header_id', $page->record->id)
-                        ->find($arguments['item_id'] ?? null)
-                        ?->toArray() ?? []
+                fn (array $arguments): array => RkaItem::query()
+                    ->where('rka_header_id', $page->record->id)
+                    ->find($arguments['item_id'] ?? null)
+                    ?->toArray() ?? []
             )
             ->form(
-                fn (Schema $schema): Schema =>
-                    EditItemForm::configure($schema)
+                fn (Schema $schema): Schema => EditItemForm::configure($schema)
             )
             ->action(function (array $data, array $arguments) use ($page): void {
                 $item = RkaItem::query()
@@ -177,7 +170,7 @@ class RkaActions
                     'unit_price' => $data['unit_price'],
                 ]);
 
-                $item->rkaIndicator?->recalculateMasukanTargetValue();
+                $item->indicator?->recalculateMasukanTargetValue();
 
                 $page->record->calculatePaguRka();
                 $page->record->refresh();
@@ -199,8 +192,7 @@ class RkaActions
             ->icon('heroicon-o-document-arrow-up')
             ->color('success')
             ->form(
-                fn (Schema $schema): Schema =>
-                    ImportExcelForm::configure($schema)
+                fn (Schema $schema): Schema => ImportExcelForm::configure($schema)
             )
             ->action(function (array $data) use ($page): void {
                 $indicatorId = $data['import_scope'] === 'active_tab'
