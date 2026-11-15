@@ -1,0 +1,36 @@
+<?php
+if (! function_exists('terbilang')) {
+    /**
+     * Konversi angka nominal menjadi kalimat terbilang bahasa Indonesia.
+     */
+    function terbilang(float|int $angka): string
+    {
+        $angka = abs((float) $angka);
+        $baca = ['', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'delapan', 'sembilan', 'sepuluh', 'sebelas'];
+        $terbilang = '';
+
+        if ($angka < 12) {
+            $terbilang = ' ' . $baca[$angka];
+        } elseif ($angka < 20) {
+            $terbilang = terbilang($angka - 10) . ' belas';
+        } elseif ($angka < 100) {
+            $terbilang = terbilang((int) ($angka / 10)) . ' puluh' . terbilang($angka % 10);
+        } elseif ($angka < 200) {
+            $terbilang = ' seratus' . terbilang($angka - 100);
+        } elseif ($angka < 1000) {
+            $terbilang = terbilang((int) ($angka / 100)) . ' ratus' . terbilang($angka % 100);
+        } elseif ($angka < 2000) {
+            $terbilang = ' seribu' . terbilang($angka - 1000);
+        } elseif ($angka < 1000000) {
+            $terbilang = terbilang((int) ($angka / 1000)) . ' ribu' . terbilang($angka % 1000);
+        } elseif ($angka < 1000000000) {
+            $terbilang = terbilang((int) ($angka / 1000000)) . ' juta' . terbilang($angka % 1000000);
+        } elseif ($angka < 1000000000000) {
+            $terbilang = terbilang((int) ($angka / 1000000000)) . ' miliar' . terbilang((fmod($angka, 1000000000)));
+        } elseif ($angka < 1000000000000000) {
+            $terbilang = terbilang((int) ($angka / 1000000000000)) . ' triliun' . terbilang((fmod($angka, 1000000000000)));
+        }
+
+        return trim($terbilang);
+    }
+}

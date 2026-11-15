@@ -1,0 +1,74 @@
+services:
+  # App / PHP-FPM Service
+  app:
+    build: 
+      context: .
+      args:
+        APP_UID: "${APP_UID:-1000}"
+        APP_GID: "${APP_GID:-1000}"
+    container_name: erka_app
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+      - ./backups:/backups
+    ports:
+      - "9088:9000"
+    depends_on:
+      - db
+    networks:
+      - erka_network
+
+  # Web Server (Nginx) Service
+  webserver:
+    image: nginx:alpine
+    container_name: erka_webserver
+    restart: unless-stopped
+    ports:
+      - "28900:80"
+    volumes:
+      - ./:/var/www/html
+      - ./nginx/conf.d:/etc/nginx/conf.d
+    networks:
+      - erka_network
+    depends_on:
+      - app
+
+  # Database Service (MySQL 8.0)
+  db:
+    image: mysql:8.0
+    container_name: erka_db
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: erka
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_PASSWORD: erka
+      MYSQL_USER: erka
+    volumes:
+      - dbdata:/var/lib/mysql
+    networks:
+      - erka_network
+
+  # Node.js Service (Vite / NPM)
+  node:
+    image: node:22-alpine
+    container_name: erka_node
+    working_dir: /var/www/html
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    volumes:
+      - ./:/var/www/html
+    ports:
+      - "5173:5173"
+    networks:
+      - erka_network
+    environment:
+      - WATCHPACK_POLLING=true # Penting agar HMR mendeteksi perubahan file di host
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0" # Otomatis install & run server Vite # biar container node tetap hidup dan bisa exec manual
+
+networks:
+  erka_network:
+    driver: bridge
+
+volumes:
+  dbdata:
