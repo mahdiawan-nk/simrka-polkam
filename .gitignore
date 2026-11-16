@@ -28,3 +28,17 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+# Private folders
+/data-rka/
+/docs/
+/reports/
+
+# Ignore all Markdown files except root README.md
+*.md
+!/README.md
+
+# Ignore all root files except README.md and .gitignore
+/*
+!/*/
+!/README.md
+!/.gitignore
