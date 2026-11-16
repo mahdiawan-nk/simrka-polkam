@@ -8,6 +8,7 @@ use App\Models\RkaSetting;
 use App\Models\User;
 use App\Services\ApprovedRkaImport\ApprovedRkaImportService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Spatie\Permission\Models\Permission;
@@ -128,24 +129,43 @@ it('handles Section A without Unit Tujuan column and leaves non-MOVED statuses w
     $ctx = makeAdaptiveImportContext();
     $service = app(ApprovedRkaImportService::class);
 
-    // 19_RKA_2026-2027_Prodi_TIF.xlsx tidak memiliki kolom Unit Tujuan: 35 MOVED + 2 BUDGETED_ELSEWHERE
-    $preview = $service->preview(
-        filePath: base_path('data-rka/19_RKA_2026-2027_Prodi_TIF.xlsx'),
-        originalFilename: '19_RKA_2026-2027_Prodi_TIF.xlsx',
-        user: $ctx['tifUser'],
-        departmentId: $ctx['tifDept']->id,
-        scheduleId: $ctx['schedule']->id,
-    );
+    // Hapus kolom Unit Tujuan pada salinan 19_RKA_2026-2027_Prodi_TIF.xlsx untuk menguji template tanpa kolom Unit Tujuan
+    $spreadsheet = IOFactory::load(base_path('data-rka/19_RKA_2026-2027_Prodi_TIF.xlsx'));
+    $sheet = $spreadsheet->getSheetByName('DAFTAR PENYESUAIAN');
+    $highestCol = Coordinate::columnIndexFromString($sheet->getHighestColumn());
+    for ($colIdx = 1; $colIdx <= $highestCol; $colIdx++) {
+        $colLetter = Coordinate::stringFromColumnIndex($colIdx);
+        $headerVal = mb_strtolower(trim((string) $sheet->getCell("{$colLetter}5")->getValue()));
+        if ($headerVal === 'unit tujuan') {
+            $sheet->removeColumn($colLetter);
+            break;
+        }
+    }
 
-    expect($preview['summary']['incomplete_unit_count'])->toBe(35)
-        ->and($preview['summary']['not_required_unit_count'])->toBe(2);
+    $tempPath = storage_path('app/temp-adaptive-no-unit-tujuan.xlsx');
+    (new Xlsx($spreadsheet))->save($tempPath);
 
-    $nonMoved = collect($preview['adjustment_rows'])
-        ->filter(fn (array $row): bool => ($row['action_type'] ?? '') !== RkaAdjustment::ACTION_MOVED);
+    try {
+        $preview = $service->preview(
+            filePath: $tempPath,
+            originalFilename: '19_RKA_2026-2027_Prodi_TIF.xlsx',
+            user: $ctx['tifUser'],
+            departmentId: $ctx['tifDept']->id,
+            scheduleId: $ctx['schedule']->id,
+        );
 
-    foreach ($nonMoved as $row) {
-        expect($row['relation_status'])->toBe('TIDAK MEMERLUKAN UNIT')
-            ->and($row['destination_department_id'])->toBeNull();
+        expect($preview['summary']['incomplete_unit_count'])->toBe(35)
+            ->and($preview['summary']['not_required_unit_count'])->toBe(2);
+
+        $nonMoved = collect($preview['adjustment_rows'])
+            ->filter(fn (array $row): bool => ($row['action_type'] ?? '') !== RkaAdjustment::ACTION_MOVED);
+
+        foreach ($nonMoved as $row) {
+            expect($row['relation_status'])->toBe('TIDAK MEMERLUKAN UNIT')
+                ->and($row['destination_department_id'])->toBeNull();
+        }
+    } finally {
+        @unlink($tempPath);
     }
 });
 

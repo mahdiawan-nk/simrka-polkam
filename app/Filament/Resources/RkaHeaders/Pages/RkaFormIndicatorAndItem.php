@@ -4,6 +4,7 @@ namespace App\Filament\Resources\RkaHeaders\Pages;
 
 use App\Filament\Actions\Rka\RkaActions;
 use App\Filament\Resources\RkaHeaders\RkaHeaderResource;
+use App\Models\RkaHeader;
 use App\Models\RkaLog;
 use App\Services\RkaItemService;
 use Filament\Actions\Action;
@@ -209,6 +210,23 @@ class RkaFormIndicatorAndItem extends Page
         return RkaActions::submitRka(
             page: $this,
         );
+    }
+
+    /**
+     * Membuka halaman Import Approved RKA yang ditargetkan langsung ke RKA Draft ini.
+     */
+    public function importApprovedRkaAction(): Action
+    {
+        return Action::make('importApprovedRka')
+            ->label('Import Approved RKA')
+            ->icon('heroicon-o-arrow-up-tray')
+            ->color('success')
+            ->visible(fn (): bool => strtoupper((string) $this->record->status) === RkaHeader::STATUS_DRAFT
+                && ! $this->record->is_locked
+                && (auth()->user()?->can('importApproved', $this->record) ?? false))
+            ->url(fn (): string => RkaHeaderResource::getUrl('import-approved', [
+                'draft' => $this->record->id,
+            ]));
     }
 
     /**

@@ -42,6 +42,8 @@ class ImportApprovedRkaPage extends Page implements HasForms
 
     public ?int $reimportHeaderId = null;
 
+    public ?int $draftHeaderId = null;
+
     public ?int $activeUnlockRequestId = null;
 
     public ?RkaHeader $targetHeader = null;
@@ -60,6 +62,8 @@ class ImportApprovedRkaPage extends Page implements HasForms
         abort_unless(static::canAccess(), 403);
 
         $reimportId = request()->integer('reimport');
+        $draftId = request()->integer('draft');
+
         if ($reimportId > 0) {
             $header = RkaHeader::with(['department', 'schedule'])->findOrFail($reimportId);
             app(ApprovedRkaImportService::class)->authorizeUserForDepartment(
@@ -91,6 +95,22 @@ class ImportApprovedRkaPage extends Page implements HasForms
             $this->activeUnlockRequestId = $unlockRequest->id;
             $this->targetHeader = $header;
             $this->activeUnlockRequest = $unlockRequest;
+        } elseif ($draftId > 0) {
+            $header = RkaHeader::with(['department', 'schedule', 'indicators'])->findOrFail($draftId);
+            app(ApprovedRkaImportService::class)->validateTargetDraftHeader($header, auth()->user());
+
+            $this->draftHeaderId = $header->id;
+            $this->targetHeader = $header;
+        } else {
+            Notification::make()
+                ->title('Pilih RKA Draft Terlebih Dahulu')
+                ->body('Buka RKA berstatus DRAFT pada halaman Penyusunan Formulir RKA lalu klik tombol Import Approved RKA.')
+                ->warning()
+                ->send();
+
+            $this->redirect(RkaHeaderResource::getUrl('index'));
+
+            return;
         }
 
         $defaultDepartmentId = $this->targetHeader?->department_id
@@ -116,7 +136,7 @@ class ImportApprovedRkaPage extends Page implements HasForms
                         ->mapWithKeys(fn (RkaSchedule $s): array => [$s->id => trim("{$s->fiscal_year} - {$s->phase_name}")])
                         ->all())
                     ->required()
-                    ->disabled(fn (): bool => $this->reimportHeaderId !== null)
+                    ->disabled(fn (): bool => $this->reimportHeaderId !== null || $this->draftHeaderId !== null)
                     ->dehydrated(),
 
                 Select::make('department_id')
@@ -124,7 +144,7 @@ class ImportApprovedRkaPage extends Page implements HasForms
                     ->options(fn (): array => $this->getAccessibleDepartments()->all())
                     ->required()
                     ->searchable()
-                    ->disabled(fn (): bool => $this->reimportHeaderId !== null)
+                    ->disabled(fn (): bool => $this->reimportHeaderId !== null || $this->draftHeaderId !== null)
                     ->dehydrated(),
 
                 FileUpload::make('attachment')
@@ -160,9 +180,11 @@ class ImportApprovedRkaPage extends Page implements HasForms
         $originalFilename = basename((string) $relativePath);
 
         try {
-            $mode = $this->reimportHeaderId !== null
-                ? RkaApprovedImportBatch::TYPE_REIMPORT
-                : RkaApprovedImportBatch::TYPE_INITIAL;
+            $mode = match (true) {
+                $this->reimportHeaderId !== null => RkaApprovedImportBatch::TYPE_REIMPORT,
+                $this->draftHeaderId !== null => RkaApprovedImportBatch::TYPE_DRAFT,
+                default => RkaApprovedImportBatch::TYPE_INITIAL,
+            };
 
             $result = app(ApprovedRkaImportService::class)->preview(
                 filePath: $fullPath,
@@ -219,7 +241,26 @@ class ImportApprovedRkaPage extends Page implements HasForms
         try {
             $service = app(ApprovedRkaImportService::class);
 
-            if ($this->reimportHeaderId !== null && $this->targetHeader && $this->activeUnlockRequest) {
+            if ($this->draftHeaderId !== null && $this->targetHeader) {
+                $batch = $service->executeDraftImport(
+                    previewToken: $this->previewToken,
+                    header: $this->targetHeader->fresh(),
+                    user: auth()->user(),
+                );
+
+                Notification::make()
+                    ->title('Import Approved RKA Berhasil')
+                    ->body("Batch #{$batch->id} selesai. {$batch->belanja_count} item dan {$batch->adjustment_count} penyesuaian berhasil diimpor. Pagu Budget diperbarui dari Usulan Awal Unit dan status RKA menjadi APPROVED.")
+                    ->success()
+                    ->send();
+
+                $this->previewToken = null;
+                $this->previewResult = null;
+
+                $this->redirect(RkaHeaderResource::getUrl('review', ['record' => $this->targetHeader->id]));
+
+                return;
+            } elseif ($this->reimportHeaderId !== null && $this->targetHeader && $this->activeUnlockRequest) {
                 $batch = $service->executeReimport(
                     previewToken: $this->previewToken,
                     header: $this->targetHeader->fresh(),
@@ -415,6 +456,8 @@ class ImportApprovedRkaPage extends Page implements HasForms
 
         if ($this->reimportHeaderId !== null) {
             $query->where('rka_header_id', $this->reimportHeaderId);
+        } elseif ($this->draftHeaderId !== null) {
+            $query->where('rka_header_id', $this->draftHeaderId);
         } elseif ($user && ! $user->hasRole('super_admin')) {
             $deptIds = $user->departments()->pluck('departments.id');
             $query->whereIn('department_id', $deptIds);

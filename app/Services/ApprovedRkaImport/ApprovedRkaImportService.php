@@ -4,6 +4,7 @@ namespace App\Services\ApprovedRkaImport;
 
 use App\Models\Account;
 use App\Models\Department;
+use App\Models\DepartmentBudget;
 use App\Models\RkaAdjustment;
 use App\Models\RkaApprovedImportBatch;
 use App\Models\RkaHeader;
@@ -140,7 +141,17 @@ class ApprovedRkaImportService
         ?RkaHeader $targetHeader = null,
         ?int $unlockRequestId = null,
     ): array {
-        $this->authorizeUserForDepartment($user, $departmentId, $targetHeader);
+        if ($mode === RkaApprovedImportBatch::TYPE_DRAFT) {
+            if ($targetHeader === null) {
+                throw new InvalidArgumentException('RKA Header Draft tujuan wajib dipilih sebelum melakukan preview.');
+            }
+
+            $this->validateTargetDraftHeader($targetHeader, $user);
+            $departmentId = (int) $targetHeader->department_id;
+            $scheduleId = (int) $targetHeader->schedule_id;
+        } else {
+            $this->authorizeUserForDepartment($user, $departmentId, $targetHeader);
+        }
 
         if (! is_file($filePath) || ! is_readable($filePath)) {
             throw new InvalidArgumentException('File Excel tidak ditemukan atau tidak dapat dibaca.');
@@ -290,16 +301,25 @@ class ApprovedRkaImportService
         $infos = $parsed['infos'];
 
         $matchedDept = $parsed['matched_department'];
-        if ($matchedDept === null) {
-            $excelUnit = $parsed['identitas']['unit_kerja'] ?? '(kosong)';
-            $fatalErrors[] = "Identitas Unit Kerja pada workbook ('{$excelUnit}') tidak dapat dicocokkan dengan master Departemen.";
-        } elseif ((int) $matchedDept['id'] !== (int) $department->id) {
-            if (! $user->hasRole('super_admin')) {
-                throw new AuthorizationException(
-                    "Workbook ini milik unit '{$matchedDept['name']}', bukan unit '{$department->name}'."
-                );
+        if ($mode === RkaApprovedImportBatch::TYPE_DRAFT) {
+            if ($matchedDept === null) {
+                $excelUnit = $parsed['identitas']['unit_kerja'] ?? '(kosong)';
+                $warnings[] = "Unit kerja pada file Excel ('{$excelUnit}') tidak terpetakan ke master Departemen. Data tetap akan diimpor ke RKA Draft '{$department->name}' tanpa mengubah identitas target.";
+            } elseif ((int) $matchedDept['id'] !== (int) $department->id) {
+                $warnings[] = "Unit asal pada Excel ('{$matchedDept['name']}') berbeda dengan unit RKA Draft ('{$department->name}'). Identitas unit, periode, indikator, dan pagu RKA Draft tetap dipertahankan.";
             }
-            $fatalErrors[] = "Unit Kerja pada workbook ('{$matchedDept['name']}') tidak cocok dengan unit yang dipilih ('{$department->name}').";
+        } else {
+            if ($matchedDept === null) {
+                $excelUnit = $parsed['identitas']['unit_kerja'] ?? '(kosong)';
+                $fatalErrors[] = "Identitas Unit Kerja pada workbook ('{$excelUnit}') tidak dapat dicocokkan dengan master Departemen.";
+            } elseif ((int) $matchedDept['id'] !== (int) $department->id) {
+                if (! $user->hasRole('super_admin')) {
+                    throw new AuthorizationException(
+                        "Workbook ini milik unit '{$matchedDept['name']}', bukan unit '{$department->name}'."
+                    );
+                }
+                $fatalErrors[] = "Unit Kerja pada workbook ('{$matchedDept['name']}') tidak cocok dengan unit yang dipilih ('{$department->name}').";
+            }
         }
 
         $counts = [
@@ -338,10 +358,75 @@ class ApprovedRkaImportService
 
         $paguAwalUnit = $parsed['ringkasan']['usulan_awal_unit'] ?? null;
 
-        $hasFatalErrors = count($fatalErrors) > 0;
-
         $token = (string) Str::uuid();
         $checksum = hash_file('sha256', $filePath) ?: Str::random(64);
+
+        $targetDraftMeta = null;
+        if ($mode === RkaApprovedImportBatch::TYPE_DRAFT && $targetHeader !== null) {
+            $duplicateFile = RkaApprovedImportBatch::query()
+                ->where('rka_header_id', $targetHeader->id)
+                ->where('status', RkaApprovedImportBatch::STATUS_SUCCESS)
+                ->where('file_checksum', $checksum)
+                ->exists();
+
+            if ($duplicateFile) {
+                $fatalErrors[] = 'File Excel yang sama sudah pernah diimpor ke RKA Draft ini. Import ganda file identik ditolak.';
+            }
+
+            if ($paguAwalUnit === null || ! is_numeric($paguAwalUnit) || (float) $paguAwalUnit < 0) {
+                $fatalErrors[] = 'Nilai Usulan Awal Unit pada worksheet RINGKASAN tidak ditemukan atau tidak valid sehingga pagu_budget tidak dapat diisi.';
+            }
+
+            $existingItemRefs = RkaItem::query()
+                ->where('rka_header_id', $targetHeader->id)
+                ->whereNotNull('source_ref_id')
+                ->pluck('source_ref_id')
+                ->all();
+            $existingAdjRefs = RkaAdjustment::query()
+                ->where('rka_header_id', $targetHeader->id)
+                ->whereNotNull('source_ref_id')
+                ->pluck('source_ref_id')
+                ->all();
+
+            $duplicateItems = collect($parsed['belanja_rows'])
+                ->filter(fn (array $row): bool => in_array((string) ($row['item_ref_id'] ?? $row['source_ref_id'] ?? ''), $existingItemRefs, true))
+                ->count();
+            $duplicateAdjustments = collect($parsed['adjustment_rows'])
+                ->filter(fn (array $row): bool => in_array((string) ($row['adj_ref_id'] ?? ''), $existingAdjRefs, true))
+                ->count();
+
+            $sectionACount = collect($parsed['adjustment_rows'])
+                ->filter(fn (array $row): bool => strtoupper((string) ($row['section'] ?? $row['section_type'] ?? 'A')) === RkaAdjustment::SECTION_A)
+                ->count();
+            $sectionBCount = collect($parsed['adjustment_rows'])
+                ->filter(fn (array $row): bool => strtoupper((string) ($row['section'] ?? $row['section_type'] ?? '')) === RkaAdjustment::SECTION_B)
+                ->count();
+
+            $targetDraftMeta = [
+                'rka_header_id' => $targetHeader->id,
+                'department_name' => $department->name,
+                'fiscal_year' => $schedule->fiscal_year,
+                'period_range' => $schedule->period_range,
+                'status' => $targetHeader->status,
+                'pagu_budget' => (float) $targetHeader->pagu_budget,
+                'new_pagu_budget' => ($paguAwalUnit !== null && is_numeric($paguAwalUnit)) ? (float) $paguAwalUnit : null,
+                'pagu_awal_source' => $parsed['ringkasan']['usulan_awal_unit_source'] ?? null,
+                'pagu_awal_label' => $parsed['ringkasan']['usulan_awal_unit_label'] ?? null,
+                'indicator_count' => $targetHeader->indicators()->count(),
+                'existing_item_count' => RkaItem::where('rka_header_id', $targetHeader->id)->count(),
+                'existing_adjustment_count' => RkaAdjustment::where('rka_header_id', $targetHeader->id)->count(),
+                'duplicate_file_detected' => $duplicateFile,
+                'duplicate_item_count' => $duplicateItems,
+                'new_item_count' => max(0, count($parsed['belanja_rows']) - $duplicateItems),
+                'duplicate_adjustment_count' => $duplicateAdjustments,
+                'new_adjustment_count' => max(0, count($parsed['adjustment_rows']) - $duplicateAdjustments),
+                'section_a_count' => $sectionACount,
+                'section_b_count' => $sectionBCount,
+                'final_status' => RkaHeader::STATUS_APPROVED,
+            ];
+        }
+
+        $hasFatalErrors = count($fatalErrors) > 0;
 
         $previewData = [
             'token' => $token,
@@ -349,6 +434,7 @@ class ApprovedRkaImportService
             'user_id' => $user->id,
             'mode' => $mode,
             'rka_header_id' => $targetHeader?->id,
+            'target_draft' => $targetDraftMeta,
             'unlock_request_id' => $unlockRequestId,
             'department_id' => $department->id,
             'department_name' => $department->name,
@@ -526,6 +612,385 @@ class ApprovedRkaImportService
         }
 
         return $batch;
+    }
+
+    /**
+     * Memvalidasi bahwa RKA Header Draft memenuhi syarat kepemilikan, status, jadwal, dan indikator Finance.
+     *
+     * @throws AuthorizationException
+     * @throws InvalidArgumentException
+     */
+    public function validateTargetDraftHeader(RkaHeader $header, User $user): void
+    {
+        $this->authorizeUserForDepartment($user, (int) $header->department_id, $header);
+
+        if (strtoupper((string) $header->status) !== RkaHeader::STATUS_DRAFT) {
+            throw new InvalidArgumentException(
+                "Import Approved RKA ke Draft ditolak: status RKA saat ini adalah '{$header->status}', bukan DRAFT."
+            );
+        }
+
+        if ((bool) $header->is_locked) {
+            throw new InvalidArgumentException('RKA Draft sedang terkunci sehingga tidak dapat diimpor.');
+        }
+
+        if ($header->schedule_id === null || $header->schedule === null) {
+            throw new InvalidArgumentException('RKA Draft belum memiliki jadwal/periode anggaran yang valid.');
+        }
+
+        if (! $header->indicators()->exists()) {
+            throw new InvalidArgumentException(
+                'RKA Draft belum memiliki indikator yang disiapkan oleh Finance. Siapkan indikator terlebih dahulu sebelum melakukan import.'
+            );
+        }
+    }
+
+    /**
+     * Mengeksekusi import data Excel Approved ke RKA Header Draft yang sudah dibuat Finance:
+     * mengisi pagu_budget dari Usulan Awal Unit (RINGKASAN), menyimpan item & adjustment,
+     * menyinkronkan DepartmentBudget, mengubah status menjadi APPROVED, dan mencatat provenance tanpa approval palsu.
+     */
+    public function executeDraftImport(
+        string $previewToken,
+        RkaHeader $header,
+        User $user,
+    ): RkaApprovedImportBatch {
+        $preview = $this->resolveAndValidatePreview($previewToken, $user, RkaApprovedImportBatch::TYPE_DRAFT);
+
+        if ((int) ($preview['rka_header_id'] ?? 0) !== (int) $header->id) {
+            throw new InvalidArgumentException('Sesi preview tidak cocok dengan RKA Draft yang sedang dibuka.');
+        }
+
+        $this->validateAdjustmentUnitsBeforeFinalize($preview);
+        $paguBudget = $this->resolvePaguBudgetForImport($preview);
+
+        try {
+            $batch = DB::transaction(function () use ($preview, $header, $user, $paguBudget): RkaApprovedImportBatch {
+                $lockedHeader = RkaHeader::query()
+                    ->with(['schedule', 'department'])
+                    ->lockForUpdate()
+                    ->findOrFail($header->id);
+
+                $this->validateTargetDraftHeader($lockedHeader, $user);
+
+                $duplicateFile = RkaApprovedImportBatch::query()
+                    ->where('rka_header_id', $lockedHeader->id)
+                    ->where('status', RkaApprovedImportBatch::STATUS_SUCCESS)
+                    ->where('file_checksum', $preview['file_checksum'])
+                    ->exists();
+
+                if ($duplicateFile) {
+                    throw new InvalidArgumentException(
+                        'File Excel yang sama sudah pernah diimpor ke RKA Draft ini. Import ganda ditolak.'
+                    );
+                }
+
+                $existingIndicators = $lockedHeader->indicators()
+                    ->with('account')
+                    ->orderBy('id')
+                    ->get();
+
+                $belanjaResult = $this->persistBelanjaItemsForDraft(
+                    $lockedHeader,
+                    $preview['belanja_rows'],
+                    $existingIndicators,
+                );
+
+                $adjResult = $this->persistAdjustmentsForDraft(
+                    $lockedHeader,
+                    $preview['adjustment_rows'],
+                    $belanjaResult['itemIdMap'],
+                    $user,
+                );
+
+                $this->syncDepartmentBudgetForApprovedHeader($lockedHeader);
+
+                $previousStatus = $lockedHeader->status;
+                $previousPagu = (float) $lockedHeader->pagu_budget;
+
+                $lockedHeader->update([
+                    'pagu_budget' => $paguBudget,
+                    'status' => RkaHeader::STATUS_APPROVED,
+                    'is_locked' => true,
+                ]);
+
+                $batch = RkaApprovedImportBatch::create([
+                    'rka_header_id' => $lockedHeader->id,
+                    'department_id' => $lockedHeader->department_id,
+                    'schedule_id' => $lockedHeader->schedule_id,
+                    'imported_by' => $user->id,
+                    'import_type' => RkaApprovedImportBatch::TYPE_DRAFT,
+                    'original_filename' => $preview['original_filename'],
+                    'file_checksum' => $preview['file_checksum'],
+                    'belanja_count' => $belanjaResult['createdCount'],
+                    'adjustment_count' => $adjResult['createdCount'],
+                    'total_proposed' => $preview['summary']['total_proposed'],
+                    'total_approved' => $preview['summary']['total_approved'],
+                    'status' => RkaApprovedImportBatch::STATUS_SUCCESS,
+                    'summary' => array_merge($preview['summary'], [
+                        'created_items' => $belanjaResult['createdCount'],
+                        'skipped_duplicate_items' => $belanjaResult['skippedCount'],
+                        'created_adjustments' => $adjResult['createdCount'],
+                        'skipped_duplicate_adjustments' => $adjResult['skippedCount'],
+                        'provenance' => 'APPROVED_DOCUMENT_IMPORT',
+                    ]),
+                ]);
+
+                $sectionACount = collect($preview['adjustment_rows'])
+                    ->filter(fn (array $row): bool => strtoupper((string) ($row['section'] ?? $row['section_type'] ?? 'A')) === RkaAdjustment::SECTION_A)
+                    ->count();
+                $sectionBCount = collect($preview['adjustment_rows'])
+                    ->filter(fn (array $row): bool => strtoupper((string) ($row['section'] ?? $row['section_type'] ?? '')) === RkaAdjustment::SECTION_B)
+                    ->count();
+
+                $this->activityLogService->log(
+                    action: RkaLog::ACTION_APPROVED_IMPORT_EXECUTED,
+                    headerId: $lockedHeader->id,
+                    subject: $batch,
+                    description: "Import Approved RKA ke RKA #{$lockedHeader->id} ({$preview['original_filename']}) berhasil: pagu_budget Rp ".number_format($paguBudget, 0, ',', '.').", {$belanjaResult['createdCount']} item, {$adjResult['createdCount']} penyesuaian, status {$previousStatus} -> APPROVED.",
+                    oldValues: [
+                        'status' => $previousStatus,
+                        'pagu_budget' => $previousPagu,
+                    ],
+                    newValues: [
+                        'batch_id' => $batch->id,
+                        'rka_header_id' => $lockedHeader->id,
+                        'department_id' => $lockedHeader->department_id,
+                        'fiscal_year' => $lockedHeader->schedule?->fiscal_year,
+                        'filename' => $preview['original_filename'],
+                        'pagu_budget' => $paguBudget,
+                        'pagu_awal_source' => $preview['summary']['pagu_awal_source'] ?? null,
+                        'belanja_count' => $belanjaResult['createdCount'],
+                        'adjustment_count' => $adjResult['createdCount'],
+                        'section_a_count' => $sectionACount,
+                        'section_b_count' => $sectionBCount,
+                        'status' => RkaHeader::STATUS_APPROVED,
+                        'is_locked' => true,
+                        'provenance' => 'APPROVED_DOCUMENT_IMPORT',
+                        'imported_at' => now()->toDateTimeString(),
+                    ],
+                    userId: $user->id,
+                );
+
+                return $batch;
+            });
+        } catch (Throwable $e) {
+            $this->activityLogService->log(
+                action: RkaLog::ACTION_APPROVED_IMPORT_FAILED,
+                headerId: $header->id,
+                subject: $header,
+                description: "Gagal Import Approved RKA ke Draft #{$header->id} ({$preview['original_filename']}): {$e->getMessage()}",
+                newValues: [
+                    'rka_header_id' => $header->id,
+                    'department_id' => $header->department_id,
+                    'schedule_id' => $header->schedule_id,
+                    'error' => $e->getMessage(),
+                ],
+                userId: $user->id,
+            );
+
+            throw $e;
+        }
+
+        Cache::forget($this->previewCacheKey($previewToken));
+
+        return $batch;
+    }
+
+    /**
+     * Menyinkronkan DepartmentBudget berdasarkan item RKA yang disetujui pada RKA Header APPROVED.
+     */
+    private function syncDepartmentBudgetForApprovedHeader(RkaHeader $rkaHeader): void
+    {
+        $approvedTotalsByAccount = $rkaHeader->items()
+            ->whereIn('status', [
+                RkaItem::STATUS_APPROVED,
+                RkaItem::STATUS_ACCEPTED,
+                RkaItem::STATUS_REDUCED,
+                'TRIMMED',
+            ])
+            ->where('approved_total', '>', 0)
+            ->select('account_id', DB::raw('SUM(approved_total) as total_approved'))
+            ->groupBy('account_id')
+            ->get();
+
+        $fiscalYear = $rkaHeader->schedule?->fiscal_year ?? date('Y');
+        $approvedAccountIds = [];
+
+        foreach ($approvedTotalsByAccount as $itemSum) {
+            $approvedAccountIds[] = $itemSum->account_id;
+
+            DepartmentBudget::updateOrCreate(
+                [
+                    'department_id' => $rkaHeader->department_id,
+                    'account_id' => $itemSum->account_id,
+                    'fiscal_year' => $fiscalYear,
+                ],
+                [
+                    'schedule_id' => $rkaHeader->schedule_id,
+                    'allocated_amount' => $itemSum->total_approved,
+                ]
+            );
+        }
+
+        DepartmentBudget::query()
+            ->where('department_id', $rkaHeader->department_id)
+            ->where('fiscal_year', $fiscalYear)
+            ->where('schedule_id', $rkaHeader->schedule_id)
+            ->when(
+                ! empty($approvedAccountIds),
+                fn ($query) => $query->whereNotIn('account_id', $approvedAccountIds)
+            )
+            ->update(['allocated_amount' => 0]);
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $belanjaRows
+     * @param  Collection<int, RkaIndicator>  $existingIndicators
+     * @return array{itemIdMap: array<string, int>, createdCount: int, skippedCount: int}
+     */
+    private function persistBelanjaItemsForDraft(
+        RkaHeader $header,
+        array $belanjaRows,
+        Collection $existingIndicators,
+    ): array {
+        $existingItemsByRef = RkaItem::query()
+            ->where('rka_header_id', $header->id)
+            ->whereNotNull('source_ref_id')
+            ->get()
+            ->keyBy('source_ref_id');
+
+        $itemIdMap = [];
+        $createdCount = 0;
+        $skippedCount = 0;
+
+        foreach ($belanjaRows as $row) {
+            $itemRefId = $row['item_ref_id'] ?? $row['source_ref_id'] ?? null;
+
+            if ($itemRefId !== null && $existingItemsByRef->has((string) $itemRefId)) {
+                $existingItem = $existingItemsByRef->get((string) $itemRefId);
+                $itemIdMap[(string) $itemRefId] = $existingItem->id;
+                $skippedCount++;
+
+                continue;
+            }
+
+            $indicator = $this->resolveExistingIndicatorForDraft($row, $existingIndicators);
+            $formType = $this->extractFormType($row['kelompok_belanja'], $row['kode_rekening']);
+
+            $item = RkaItem::create([
+                'source_ref_id' => $itemRefId,
+                'rka_header_id' => $header->id,
+                'rka_indicator_id' => $indicator->id,
+                'account_id' => $row['account_id'],
+                'form_type' => $formType,
+                'description' => $row['uraian_item'],
+                'group_header' => $row['group_header'],
+                'proposed_volume' => $row['vol_usulan'],
+                'unit_symbol' => $row['satuan'],
+                'unit_price' => $row['harga_satuan_usulan'],
+                'approved_volume' => $row['vol_disetujui'],
+                'approved_total' => $row['nilai_disetujui'],
+                'status' => $row['status_item'],
+                'is_trimmed' => $row['status_item'] === 'TRIMMED',
+                'is_imported' => $row['asal_item'] === 'IMPORT_SECTION_B',
+                'review_notes' => $row['keterangan_review'] !== '' ? $row['keterangan_review'] : null,
+            ]);
+
+            $createdCount++;
+            if ($itemRefId !== null) {
+                $itemIdMap[(string) $itemRefId] = $item->id;
+                $existingItemsByRef->put((string) $itemRefId, $item);
+            }
+        }
+
+        return [
+            'itemIdMap' => $itemIdMap,
+            'createdCount' => $createdCount,
+            'skippedCount' => $skippedCount,
+        ];
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $adjustmentRows
+     * @param  array<string, int>  $itemIdMap
+     * @return array{createdCount: int, skippedCount: int}
+     */
+    private function persistAdjustmentsForDraft(
+        RkaHeader $header,
+        array $adjustmentRows,
+        array $itemIdMap,
+        User $user,
+    ): array {
+        $existingAdjRefs = RkaAdjustment::query()
+            ->where('rka_header_id', $header->id)
+            ->whereNotNull('source_ref_id')
+            ->pluck('source_ref_id')
+            ->all();
+
+        $createdCount = 0;
+        $skippedCount = 0;
+
+        foreach ($adjustmentRows as $row) {
+            $adjRefId = (string) ($row['adj_ref_id'] ?? '');
+            if ($adjRefId !== '' && in_array($adjRefId, $existingAdjRefs, true)) {
+                $skippedCount++;
+
+                continue;
+            }
+
+            $payload = $this->buildAdjustmentPayload($header, $row, $itemIdMap);
+            $payload['adjusted_by'] = $user->id;
+            RkaAdjustment::create($payload);
+            $createdCount++;
+
+            if ($adjRefId !== '') {
+                $existingAdjRefs[] = $adjRefId;
+            }
+        }
+
+        return [
+            'createdCount' => $createdCount,
+            'skippedCount' => $skippedCount,
+        ];
+    }
+
+    /**
+     * Memetakan item Excel ke indikator yang SUDAH disiapkan oleh Finance pada RKA Draft
+     * tanpa membuat, mengubah, atau menghapus indikator.
+     *
+     * @param  array<string, mixed>  $row
+     * @param  Collection<int, RkaIndicator>  $existingIndicators
+     */
+    private function resolveExistingIndicatorForDraft(array $row, Collection $existingIndicators): RkaIndicator
+    {
+        $formType = $this->extractFormType((string) ($row['kelompok_belanja'] ?? ''), (string) ($row['kode_rekening'] ?? ''));
+        $programKegiatan = mb_strtolower(trim((string) ($row['program_kegiatan'] ?? '')));
+
+        $byAccountAndProgram = $existingIndicators->first(function (RkaIndicator $ind) use ($formType, $programKegiatan): bool {
+            if ($ind->account?->code !== $formType) {
+                return false;
+            }
+
+            if ($programKegiatan === '') {
+                return false;
+            }
+
+            $indName = mb_strtolower(trim((string) $ind->program_name.' - '.(string) $ind->activity_name));
+
+            return $indName === $programKegiatan
+                || mb_strtolower(trim((string) $ind->activity_name)) === $programKegiatan;
+        });
+
+        if ($byAccountAndProgram !== null) {
+            return $byAccountAndProgram;
+        }
+
+        $byAccount = $existingIndicators->first(
+            fn (RkaIndicator $ind): bool => $ind->account?->code === $formType
+        );
+
+        return $byAccount ?? $existingIndicators->first();
     }
 
     /**

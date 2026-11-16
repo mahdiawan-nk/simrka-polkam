@@ -1,10 +1,13 @@
 <?php
 
 use App\Filament\Resources\RkaHeaders\Pages\ImportApprovedRkaPage;
+use App\Models\Account;
 use App\Models\Department;
 use App\Models\DepartmentBudget;
 use App\Models\RkaAdjustment;
+use App\Models\RkaApprovedImportBatch;
 use App\Models\RkaHeader;
+use App\Models\RkaIndicator;
 use App\Models\RkaLog;
 use App\Models\RkaSchedule;
 use App\Models\RkaSetting;
@@ -78,66 +81,76 @@ function makeManualUnitAssignmentContext(): array
 
 it('blocks finalization when section a moved lacks destination unit and succeeds once assigned manually', function () {
     $ctx = makeManualUnitAssignmentContext();
-    $ctx['tifDept']->users()->attach($ctx['p3mUser']->id);
     $service = app(ApprovedRkaImportService::class);
-    $tifFile = base_path('data-rka/19_RKA_2026-2027_Prodi_TIF.xlsx');
 
-    $preview = $service->preview(
-        filePath: $tifFile,
-        originalFilename: '19_RKA_2026-2027_Prodi_TIF.xlsx',
-        user: $ctx['p3mUser'],
-        departmentId: $ctx['tifDept']->id,
-        scheduleId: $ctx['schedule']->id,
-    );
+    // Kosongkan kolom Unit Tujuan (E) pada salinan 10_RKA_2026-2027_P3M.xlsx
+    $spreadsheet = IOFactory::load(base_path('data-rka/10_RKA_2026-2027_P3M.xlsx'));
+    $adjSheet = $spreadsheet->getSheetByName('DAFTAR PENYESUAIAN');
+    for ($r = 6; $r <= 28; $r++) {
+        $adjSheet->setCellValue("E{$r}", '');
+    }
+    $tempPath = storage_path('app/temp-manual-unit-a-empty.xlsx');
+    (new Xlsx($spreadsheet))->save($tempPath);
 
-    expect($preview['summary']['incomplete_unit_count'])->toBe(35)
-        ->and($preview['summary']['complete_unit_count'])->toBe(0)
-        ->and($preview['summary']['not_required_unit_count'])->toBe(2);
+    try {
+        $preview = $service->preview(
+            filePath: $tempPath,
+            originalFilename: '10_RKA_2026-2027_P3M.xlsx',
+            user: $ctx['p3mUser'],
+            departmentId: $ctx['p3mDept']->id,
+            scheduleId: $ctx['schedule']->id,
+        );
 
-    // Finalize must be blocked while MOVED rows have no destination_department_id
-    expect(fn () => $service->executeImport($preview['token'], $ctx['p3mUser']))
-        ->toThrow(InvalidArgumentException::class, 'belum memiliki unit tujuan/asal');
+        expect($preview['summary']['incomplete_unit_count'])->toBe(23)
+            ->and($preview['summary']['complete_unit_count'])->toBe(0);
 
-    // Assign destination units manually for all Section A MOVED rows
-    $budgetCountBefore = DepartmentBudget::count();
-    $otherHeaderCountBefore = RkaHeader::where('department_id', '!=', $ctx['tifDept']->id)->count();
+        // Finalize must be blocked while MOVED rows have no destination_department_id
+        expect(fn () => $service->executeImport($preview['token'], $ctx['p3mUser']))
+            ->toThrow(InvalidArgumentException::class, 'belum memiliki unit tujuan/asal');
 
-    foreach ($preview['adjustment_rows'] as $row) {
-        if (($row['section'] ?? '') === 'A' && ($row['action_type'] ?? '') === 'MOVED') {
-            $preview = $service->assignUnitOnPreview(
-                previewToken: $preview['token'],
-                adjRefId: $row['adj_ref_id'],
-                departmentId: $ctx['umumDept']->id,
-                user: $ctx['p3mUser'],
-            );
+        // Assign destination units manually for all Section A MOVED rows
+        $budgetCountBefore = DepartmentBudget::count();
+        $otherHeaderCountBefore = RkaHeader::where('department_id', '!=', $ctx['p3mDept']->id)->count();
+
+        foreach ($preview['adjustment_rows'] as $row) {
+            if (($row['section'] ?? '') === 'A' && ($row['action_type'] ?? '') === 'MOVED') {
+                $preview = $service->assignUnitOnPreview(
+                    previewToken: $preview['token'],
+                    adjRefId: $row['adj_ref_id'],
+                    departmentId: $ctx['umumDept']->id,
+                    user: $ctx['p3mUser'],
+                );
+            }
         }
+
+        expect($preview['summary']['incomplete_unit_count'])->toBe(0)
+            ->and($preview['summary']['complete_unit_count'])->toBe(23);
+
+        $logCount = RkaLog::where('action', RkaLog::ACTION_APPROVED_IMPORT_UNIT_ASSIGNED)
+            ->where('user_id', $ctx['p3mUser']->id)
+            ->count();
+        expect($logCount)->toBe(23);
+
+        $batch = $service->executeImport($preview['token'], $ctx['p3mUser']);
+        $header = RkaHeader::findOrFail($batch->rka_header_id);
+
+        $movedAdjustments = RkaAdjustment::where('rka_header_id', $header->id)
+            ->where('section_type', RkaAdjustment::SECTION_A)
+            ->where('action_type', RkaAdjustment::ACTION_MOVED)
+            ->get();
+
+        expect($movedAdjustments)->toHaveCount(23);
+        foreach ($movedAdjustments as $adj) {
+            expect($adj->destination_unit_id)->toBe($ctx['umumDept']->id)
+                ->and($adj->target_unit_id)->toBeNull();
+        }
+
+        // Verify no side effects on DepartmentBudget or other units' RKAs
+        expect(DepartmentBudget::count())->toBe($budgetCountBefore)
+            ->and(RkaHeader::where('department_id', '!=', $ctx['p3mDept']->id)->count())->toBe($otherHeaderCountBefore);
+    } finally {
+        @unlink($tempPath);
     }
-
-    expect($preview['summary']['incomplete_unit_count'])->toBe(0)
-        ->and($preview['summary']['complete_unit_count'])->toBe(35);
-
-    $logCount = RkaLog::where('action', RkaLog::ACTION_APPROVED_IMPORT_UNIT_ASSIGNED)
-        ->where('user_id', $ctx['p3mUser']->id)
-        ->count();
-    expect($logCount)->toBe(35);
-
-    $batch = $service->executeImport($preview['token'], $ctx['p3mUser']);
-    $header = RkaHeader::findOrFail($batch->rka_header_id);
-
-    $movedAdjustments = RkaAdjustment::where('rka_header_id', $header->id)
-        ->where('section_type', RkaAdjustment::SECTION_A)
-        ->where('action_type', RkaAdjustment::ACTION_MOVED)
-        ->get();
-
-    expect($movedAdjustments)->toHaveCount(35);
-    foreach ($movedAdjustments as $adj) {
-        expect($adj->destination_unit_id)->toBe($ctx['umumDept']->id)
-            ->and($adj->target_unit_id)->toBeNull();
-    }
-
-    // Verify no side effects on DepartmentBudget or other units' RKAs
-    expect(DepartmentBudget::count())->toBe($budgetCountBefore)
-        ->and(RkaHeader::where('department_id', '!=', $ctx['tifDept']->id)->count())->toBe($otherHeaderCountBefore);
 });
 
 it('allows manual assignment for section b with invalid or empty source unit and saves target_unit_id', function () {
@@ -264,33 +277,62 @@ it('rejects self-department, non-existent department, non-moved section a, and u
 
 it('can assign unit through Filament assignUnit modal action on ImportApprovedRkaPage', function () {
     $ctx = makeManualUnitAssignmentContext();
-    $ctx['tifDept']->users()->attach($ctx['p3mUser']->id);
     $service = app(ApprovedRkaImportService::class);
-    $tifFile = base_path('data-rka/19_RKA_2026-2027_Prodi_TIF.xlsx');
 
-    $preview = $service->preview(
-        filePath: $tifFile,
-        originalFilename: '19_RKA_2026-2027_Prodi_TIF.xlsx',
-        user: $ctx['p3mUser'],
-        departmentId: $ctx['tifDept']->id,
-        scheduleId: $ctx['schedule']->id,
-    );
+    $setting = RkaSetting::query()->latest('id')->firstOrFail();
+    $draftHeader = RkaHeader::create([
+        'schedule_id' => $ctx['schedule']->id,
+        'department_id' => $ctx['p3mDept']->id,
+        'setting_id' => $setting->id,
+        'unit_head_user_id' => $ctx['p3mUser']->id,
+        'status' => RkaHeader::STATUS_DRAFT,
+        'is_locked' => false,
+        'pagu_budget' => 100000000,
+    ]);
+    RkaIndicator::create([
+        'rka_header_id' => $draftHeader->id,
+        'account_id' => Account::where('code', '5.2')->firstOrFail()->id,
+        'program_name' => 'Program P3M',
+        'activity_name' => 'Kegiatan P3M',
+        'location' => 'Politeknik Kampar',
+        'indicator_matrix' => [],
+    ]);
 
-    $movedRow = collect($preview['adjustment_rows'])
-        ->first(fn (array $row): bool => ($row['section'] ?? '') === 'A' && ($row['action_type'] ?? '') === 'MOVED');
+    $spreadsheet = IOFactory::load(base_path('data-rka/10_RKA_2026-2027_P3M.xlsx'));
+    $spreadsheet->getSheetByName('DAFTAR PENYESUAIAN')->setCellValue('E6', '');
+    $tempPath = storage_path('app/temp-manual-unit-modal.xlsx');
+    (new Xlsx($spreadsheet))->save($tempPath);
 
-    $this->actingAs($ctx['p3mUser']);
+    try {
+        $preview = $service->preview(
+            filePath: $tempPath,
+            originalFilename: '10_RKA_2026-2027_P3M.xlsx',
+            user: $ctx['p3mUser'],
+            departmentId: $ctx['p3mDept']->id,
+            scheduleId: $ctx['schedule']->id,
+            mode: RkaApprovedImportBatch::TYPE_DRAFT,
+            targetHeader: $draftHeader,
+        );
 
-    Livewire::test(ImportApprovedRkaPage::class)
-        ->set('previewToken', $preview['token'])
-        ->set('previewResult', $preview)
-        ->set('activePreviewTab', 'adjustments')
-        ->callAction('assignUnit', data: [
-            'department_id' => $ctx['umumDept']->id,
-        ], arguments: [
-            'adj_ref_id' => $movedRow['adj_ref_id'],
-        ])
-        ->assertHasNoActionErrors()
-        ->assertSet('previewResult.summary.complete_unit_count', 1)
-        ->assertSet('previewResult.summary.incomplete_unit_count', 34);
+        $movedRow = collect($preview['adjustment_rows'])
+            ->first(fn (array $row): bool => ($row['section'] ?? '') === 'A' && ($row['action_type'] ?? '') === 'MOVED');
+
+        $this->actingAs($ctx['p3mUser']);
+
+        Livewire::withQueryParams(['draft' => $draftHeader->id])
+            ->test(ImportApprovedRkaPage::class)
+            ->set('previewToken', $preview['token'])
+            ->set('previewResult', $preview)
+            ->set('activePreviewTab', 'adjustments')
+            ->callAction('assignUnit', data: [
+                'department_id' => $ctx['ictDept']->id,
+            ], arguments: [
+                'adj_ref_id' => $movedRow['adj_ref_id'],
+            ])
+            ->assertHasNoActionErrors()
+            ->assertSet('previewResult.summary.complete_unit_count', 23)
+            ->assertSet('previewResult.summary.incomplete_unit_count', 0);
+    } finally {
+        @unlink($tempPath);
+    }
 });

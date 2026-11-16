@@ -84,3 +84,33 @@ Dokumen ini berisi hasil audit implementasi existing serta spesifikasi implement
    - **Section A**: Membaca `Unit Tujuan` jika tersedia -> resolve via `DepartmentResolver` -> `destination_department_id` (`unit_source = 'EXCEL'`), sedangkan `target_department_id = null`. Status non-`MOVED` ditandai `TIDAK MEMERLUKAN UNIT`.
    - **Section B**: Membaca `Unit Asal` / `Unit Asal/Sumber` jika tersedia -> resolve via `DepartmentResolver` -> `target_department_id` (`unit_source = 'EXCEL'`), sedangkan `destination_department_id = null`.
    - Edit atau pemilihan manual melalui modal `assignUnit` mengubah `unit_source` menjadi `'MANUAL'`, mempertahankan nilai Excel asli (`unit_tujuan_excel` / `unit_asal_excel`) untuk tampilan preview, dan menjadi nilai final saat disimpan ke database.
+
+---
+
+## 7. Import Approved RKA ke RKA Draft yang Disiapkan Finance
+
+1. **Perubahan Konsep & Lokasi Akses**:
+   - Finance menyiapkan `RkaHeader` (`status = DRAFT`), `RkaSchedule`, `pagu_budget`, serta `RkaIndicator`.
+   - Tombol **Import Approved RKA** kini berada di toolbar halaman Penyusunan Formulir RKA (`RkaFormIndicatorAndItem` — `/admin/rka-headers/{record}/form-indicator-and-item`) dan hanya tampil bila RKA berstatus `DRAFT`, tidak terkunci, serta user berhak (`RkaHeaderPolicy::importApproved`).
+   - Tombol global di `ListRkaHeaders` dihapus dan akses langsung `/admin/rka-headers/import-approved` tanpa `?draft=` atau `?reimport=` diarahkan kembali ke daftar RKA agar tidak ada pembuatan `RkaHeader` baru.
+2. **Target Penyimpanan & Perlindungan Data Finance**:
+   - `ApprovedRkaImportService::executeDraftImport()` menargetkan `RkaHeader` Draft yang sedang dibuka (`rka_header_id`), tidak membuat `RkaHeader` baru, tidak mengubah `department_id`, `schedule_id`, `pagu_budget`, maupun status `DRAFT`.
+   - Item belanja (`RkaItem`) dipetakan hanya ke `RkaIndicator` yang sudah disiapkan Finance (`resolveExistingIndicatorForDraft()`), tanpa membuat/mengubah/menghapus indikator.
+   - Penyesuaian (`RkaAdjustment`) Section A (`destination_unit_id`) dan Section B (`target_unit_id`) tetap disimpan sesuai relasi unit masing-masing.
+3. **Proteksi Duplikasi & Log**:
+   - Menolak import file dengan `file_checksum` yang sudah pernah berstatus `SUCCESS` pada `rka_header_id` yang sama, melewati item/adjustment dengan `source_ref_id` yang sudah ada, serta mencatat 1 `RkaLog::ACTION_APPROVED_IMPORT_EXECUTED` dalam transaksi database.
+
+---
+
+## 8. Pembaruan Final: Draft → `APPROVED`, `pagu_budget` dari Usulan Awal Unit, `DepartmentBudget`, dan Redirect ke Review RKA
+
+1. **Sumber `pagu_budget`**:
+   - Pada mode Draft (`TYPE_DRAFT`), nilai `rka_headers.pagu_budget` diperbarui dari **Usulan Awal Unit** pada worksheet `RINGKASAN` (sel `RINGKASAN!C6`), **bukan** dari `SUM` item belanja maupun `SUM` adjustment.
+   - Jika nilai **Usulan Awal Unit** tidak ditemukan, kosong, non-numerik, atau `< 0`, preview menandai fatal error dan eksekusi import ditolak.
+2. **Transisi Status & Provenance tanpa `RkaApproval` Palsu**:
+   - Setelah seluruh `RkaItem`, `RkaAdjustment` (Section A `destination_unit_id`, Section B `target_unit_id`), dan sinkronisasi `DepartmentBudget` (`syncDepartmentBudgetForApprovedHeader()`) berhasil di dalam satu transaksi database (`DB::transaction`), `RkaHeader` diperbarui menjadi `status = APPROVED`, `is_locked = true`, dengan `pagu_budget` baru.
+   - Tidak ada record `RkaApproval` palsu yang dibuat; jejak asal data dicatat melalui `RkaApprovedImportBatch` (`summary.provenance = 'APPROVED_DOCUMENT_IMPORT'`) dan `RkaLog::ACTION_APPROVED_IMPORT_EXECUTED`.
+   - Indikator kinerja (`RkaIndicator`) yang disiapkan Finance tetap dipertahankan utuh.
+3. **Redirect & Verifikasi Halaman Review**:
+   - Setelah `ImportApprovedRkaPage::confirmImport()` berhasil pada mode Draft, pengguna langsung diarahkan ke halaman **Review RKA** (`/admin/rka-headers/{record}/review`, route `'review'`).
+   - Teruji pada `DraftRkaApprovedImportTest` (5 passed, 132 assertions) mencakup `pagu_budget` dari `RINGKASAN!C6`, sinkronisasi `DepartmentBudget`, provenance tanpa `RkaApproval`, rollback transaksi saat `Usulan Awal Unit` hilang, redirect Livewire ke `ReviewRkaPage`, dan rendering `ReviewRkaPage` dari database.

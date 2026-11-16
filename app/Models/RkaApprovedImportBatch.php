@@ -14,6 +14,8 @@ class RkaApprovedImportBatch extends Model
 
     public const TYPE_REIMPORT = 'REIMPORT';
 
+    public const TYPE_DRAFT = 'DRAFT_IMPORT';
+
     public const STATUS_SUCCESS = 'SUCCESS';
 
     public const STATUS_FAILED = 'FAILED';

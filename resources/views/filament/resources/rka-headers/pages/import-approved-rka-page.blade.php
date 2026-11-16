@@ -17,6 +17,23 @@
                     </x-filament::badge>
                 </div>
             </x-filament::section>
+        @elseif($this->draftHeaderId && $this->targetHeader)
+            <x-filament::section>
+                <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                    <div class="space-y-1">
+                        <h3 class="text-base font-semibold text-gray-950 dark:text-white">
+                            Import Approved RKA ke RKA Draft #{{ $this->targetHeader->id }}
+                        </h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Target: <strong>{{ $this->targetHeader->department?->name }}</strong>
+                            ({{ $this->targetHeader->schedule?->fiscal_year }} — {{ $this->targetHeader->schedule?->period_range }}).
+                            {{ $this->targetHeader->indicators->count() }} indikator Finance dipertahankan.
+                            Setelah import berhasil, <strong>Pagu Budget</strong> akan diperbarui dari <strong>Usulan Awal Unit</strong> (worksheet RINGKASAN) dan status RKA akan langsung menjadi <strong>APPROVED</strong> serta dapat dilihat melalui halaman <strong>Review RKA</strong>.
+                        </p>
+                    </div>
+                    <x-filament::badge color="warning">DRAFT → APPROVED</x-filament::badge>
+                </div>
+            </x-filament::section>
         @else
             <x-filament::section>
                 <div class="space-y-1">
@@ -58,12 +75,46 @@
                 $adjustmentRows = $this->previewResult['adjustment_rows'] ?? [];
                 $diffCount = (int) ($summary['diff_count'] ?? 0);
                 $invalidTotal = (int) ($summary['not_found_count'] ?? 0) + (int) ($summary['invalid_count'] ?? 0);
+                $targetDraft = $this->previewResult['target_draft'] ?? null;
+                $identitasPreview = $this->previewResult['identitas'] ?? [];
+                $sheetsMetaPreview = $this->previewResult['sheets_meta'] ?? [];
             @endphp
 
             <x-filament::section>
                 <x-slot name="heading">
                     Hasil Preview & Validasi ({{ $this->previewResult['original_filename'] ?? '-' }})
                 </x-slot>
+
+                @if($targetDraft)
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-3 mb-4 text-xs">
+                        <div class="rounded-lg border border-primary-200 bg-primary-50/40 p-3.5 dark:border-primary-800 dark:bg-primary-950/20 space-y-1">
+                            <div class="font-semibold text-primary-700 dark:text-primary-300 mb-1.5">Identitas Target (RKA Draft #{{ $targetDraft['rka_header_id'] }})</div>
+                            <div><strong>Unit:</strong> {{ $targetDraft['department_name'] }}</div>
+                            <div><strong>Tahun / Periode:</strong> {{ $targetDraft['fiscal_year'] }} ({{ $targetDraft['period_range'] }})</div>
+                            <div><strong>Status Saat Ini:</strong> {{ $targetDraft['status'] }} → <strong>Status Akhir:</strong> {{ $targetDraft['final_status'] ?? 'APPROVED' }}</div>
+                            <div><strong>Pagu Awal Draft:</strong> Rp {{ number_format((float) $targetDraft['pagu_budget'], 0, ',', '.') }}</div>
+                            <div><strong>Indikator Finance:</strong> {{ $targetDraft['indicator_count'] }} (dipertahankan)</div>
+                        </div>
+                        <div class="rounded-lg border border-gray-200 p-3.5 dark:border-gray-700 space-y-1">
+                            <div class="font-semibold text-gray-900 dark:text-gray-100 mb-1.5">Identitas File Sumber (Excel)</div>
+                            <div><strong>Nama File:</strong> {{ $this->previewResult['original_filename'] ?? '-' }}</div>
+                            <div><strong>Unit Asal Excel:</strong> {{ $identitasPreview['unit_kerja'] ?? '-' }}</div>
+                            <div><strong>Tahun Sumber:</strong> {{ $identitasPreview['tahun_anggaran'] ?? '-' }}</div>
+                            <div><strong>Usulan Awal Unit ({{ $targetDraft['pagu_awal_source'] ?? 'RINGKASAN!C6' }}):</strong> <span class="font-semibold text-primary-700 dark:text-primary-300">Rp {{ number_format((float) ($targetDraft['new_pagu_budget'] ?? 0), 0, ',', '.') }}</span></div>
+                            <div><strong>Worksheet Belanja:</strong> {{ count($sheetsMetaPreview['belanja_sheets'] ?? []) }} | <strong>Total Item:</strong> {{ count($belanjaRows) }}</div>
+                        </div>
+                        <div class="rounded-lg border border-gray-200 p-3.5 dark:border-gray-700 space-y-1">
+                            <div class="font-semibold text-gray-900 dark:text-gray-100 mb-1.5">Ringkasan Hasil Import & Status Akhir</div>
+                            <div><strong>Item Baru Ditambahkan:</strong> {{ $targetDraft['new_item_count'] }} (Duplikat dilewati: {{ $targetDraft['duplicate_item_count'] }})</div>
+                            <div><strong>Adjustment Baru:</strong> {{ $targetDraft['new_adjustment_count'] }} (Sec A: {{ $targetDraft['section_a_count'] ?? 0 }}, Sec B: {{ $targetDraft['section_b_count'] ?? 0 }}, Duplikat: {{ $targetDraft['duplicate_adjustment_count'] }})</div>
+                            <div><strong>Pagu Budget Baru:</strong> Rp {{ number_format((float) ($targetDraft['new_pagu_budget'] ?? 0), 0, ',', '.') }}</div>
+                            <div><strong>Butuh Pemilihan Unit:</strong> {{ (int) ($summary['incomplete_unit_count'] ?? 0) }} | <strong>Perlu Perhatian:</strong> {{ $diffCount + $invalidTotal }}</div>
+                        </div>
+                    </div>
+                    <div class="mb-6 rounded-lg border border-amber-200 bg-amber-50/70 px-4 py-2.5 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+                        <strong>Perhatian:</strong> Setelah import berhasil, RKA akan langsung berstatus <strong>APPROVED</strong> (terkunci) dan dapat dilihat melalui halaman <strong>Review RKA</strong>. Indikator kinerja yang sudah disiapkan Finance tetap dipertahankan.
+                    </div>
+                @endif
 
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
                     <div class="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
@@ -521,15 +572,25 @@
                     </div>
                     <div class="flex items-center justify-end gap-3">
                         @if(! $hasFatal)
+                            @php
+                                $confirmPrompt = $this->draftHeaderId
+                                    ? 'Yakin ingin mengimpor data Approved RKA ke RKA Draft #' . $this->draftHeaderId . '? Pagu Budget akan diperbarui dari Usulan Awal Unit dan status RKA akan langsung menjadi APPROVED.'
+                                    : 'Yakin ingin menyimpan data Approved RKA ini? Setelah disimpan, RKA akan berstatus APPROVED dan terkunci otomatis.';
+                                $confirmLabel = match (true) {
+                                    $this->draftHeaderId !== null => 'Konfirmasi & Impor Approved RKA',
+                                    $this->reimportHeaderId !== null => 'Konfirmasi & Jalankan Import Ulang',
+                                    default => 'Konfirmasi & Simpan Approved RKA',
+                                };
+                            @endphp
                             <x-filament::button
                                 type="button"
                                 color="success"
                                 icon="heroicon-o-check-circle"
                                 :disabled="$incompleteUnitsOnConfirm > 0"
                                 wire:click="confirmImport"
-                                wire:confirm="Yakin ingin menyimpan data Approved RKA ini? Setelah disimpan, RKA akan berstatus APPROVED dan terkunci otomatis."
+                                :wire:confirm="$confirmPrompt"
                             >
-                                {{ $this->reimportHeaderId ? 'Konfirmasi & Jalankan Import Ulang' : 'Konfirmasi & Simpan Approved RKA' }}
+                                {{ $confirmLabel }}
                             </x-filament::button>
                         @endif
                     </div>

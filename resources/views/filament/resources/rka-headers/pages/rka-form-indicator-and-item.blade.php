@@ -106,6 +106,7 @@
                     <div class="flex items-center gap-2">
                         {{ $this->addProgramAction }}
                         {{ $this->importExcelAction }}
+                        {{ $this->importApprovedRkaAction }}
                     </div>
 
                     <!-- Group 2: Utilities & Danger Zone Actions -->
