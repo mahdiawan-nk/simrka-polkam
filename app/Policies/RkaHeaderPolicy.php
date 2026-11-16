@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Policies;
 
+use Illuminate\Foundation\Auth\User as AuthUser;
 use App\Models\RkaHeader;
 use Illuminate\Auth\Access\HandlesAuthorization;
-use Illuminate\Foundation\Auth\User as AuthUser;
 
 class RkaHeaderPolicy
 {
     use HandlesAuthorization;
-
+    
     public function viewAny(AuthUser $authUser): bool
     {
         return $authUser->can('ViewAny:RkaHeader');
@@ -19,7 +19,7 @@ class RkaHeaderPolicy
 
     public function view(AuthUser $authUser, RkaHeader $rkaHeader): bool
     {
-        return $authUser->can('View:RkaHeader') && $this->canAccessRecord($authUser, $rkaHeader);
+        return $authUser->can('View:RkaHeader');
     }
 
     public function create(AuthUser $authUser): bool
@@ -29,44 +29,12 @@ class RkaHeaderPolicy
 
     public function update(AuthUser $authUser, RkaHeader $rkaHeader): bool
     {
-        if ($rkaHeader->is_locked && ! $authUser->hasRole('super_admin')) {
-            return false;
-        }
-
-        return $authUser->can('Update:RkaHeader') && $this->canAccessRecord($authUser, $rkaHeader);
+        return $authUser->can('Update:RkaHeader');
     }
 
     public function delete(AuthUser $authUser, RkaHeader $rkaHeader): bool
     {
-        if ($rkaHeader->is_locked && ! $authUser->hasRole('super_admin')) {
-            return false;
-        }
-
-        return $authUser->can('Delete:RkaHeader') && $this->canAccessRecord($authUser, $rkaHeader);
-    }
-
-    public function importApproved(AuthUser $authUser, ?RkaHeader $rkaHeader = null): bool
-    {
-        if (! $authUser->hasAnyRole(['pemohon', 'super_admin'])) {
-            return false;
-        }
-
-        if ($rkaHeader !== null) {
-            return $this->canAccessRecord($authUser, $rkaHeader);
-        }
-
-        return true;
-    }
-
-    public function requestUnlock(AuthUser $authUser, RkaHeader $rkaHeader): bool
-    {
-        if (! $authUser->hasRole('pemohon')) {
-            return false;
-        }
-
-        return $this->canAccessRecord($authUser, $rkaHeader)
-            && strtoupper((string) $rkaHeader->status) === RkaHeader::STATUS_APPROVED
-            && (bool) $rkaHeader->is_locked;
+        return $authUser->can('Delete:RkaHeader');
     }
 
     public function deleteAny(AuthUser $authUser): bool
@@ -76,12 +44,12 @@ class RkaHeaderPolicy
 
     public function restore(AuthUser $authUser, RkaHeader $rkaHeader): bool
     {
-        return $authUser->can('Restore:RkaHeader') && $this->canAccessRecord($authUser, $rkaHeader);
+        return $authUser->can('Restore:RkaHeader');
     }
 
     public function forceDelete(AuthUser $authUser, RkaHeader $rkaHeader): bool
     {
-        return $authUser->can('ForceDelete:RkaHeader') && $this->canAccessRecord($authUser, $rkaHeader);
+        return $authUser->can('ForceDelete:RkaHeader');
     }
 
     public function forceDeleteAny(AuthUser $authUser): bool
@@ -96,7 +64,7 @@ class RkaHeaderPolicy
 
     public function replicate(AuthUser $authUser, RkaHeader $rkaHeader): bool
     {
-        return $authUser->can('Replicate:RkaHeader') && $this->canAccessRecord($authUser, $rkaHeader);
+        return $authUser->can('Replicate:RkaHeader');
     }
 
     public function reorder(AuthUser $authUser): bool
@@ -104,19 +72,4 @@ class RkaHeaderPolicy
         return $authUser->can('Reorder:RkaHeader');
     }
 
-    protected function canAccessRecord(AuthUser $authUser, RkaHeader $rkaHeader): bool
-    {
-        if ($authUser->hasAnyRole(['super_admin', 'direktur', 'keuangan', 'wadir_keuangan'])
-            || $authUser->can('ViewAllUnits:RkaHeader')) {
-            return true;
-        }
-
-        if ($rkaHeader->department_id === null) {
-            return $rkaHeader->created_by === $authUser->id;
-        }
-
-        return $authUser->departments()
-            ->where('departments.id', $rkaHeader->department_id)
-            ->exists();
-    }
 }

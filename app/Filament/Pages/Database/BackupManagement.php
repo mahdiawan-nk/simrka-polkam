@@ -24,22 +24,22 @@ class BackupManagement extends Page implements HasTable
     use HasPageShield;
     use InteractsWithTable;
 
-    public static function canAccess(): bool
-    {
-        $user = auth()->user();
+    // public static function canAccess(): bool
+    // {
+    //     $user = auth()->user();
 
-        if (! $user) {
-            return false;
-        }
+    //     if (! $user) {
+    //         return false;
+    //     }
 
-        if ($user->hasRole('super_admin')) {
-            return true;
-        }
+    //     if ($user->hasRole('super_admin')) {
+    //         return true;
+    //     }
 
-        $permission = static::getPagePermission();
+    //     $permission = static::getPagePermission();
 
-        return $permission ? $user->can($permission) : false;
-    }
+    //     return $permission ? $user->can($permission) : false;
+    // }
 
     // protected static ?string $navigationIcon = 'heroicon-o-circle-stack';
 

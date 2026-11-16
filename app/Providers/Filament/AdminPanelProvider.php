@@ -2,6 +2,8 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\Auth\Login;
+use App\Services\Branding\BrandSettingsService;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Enums\UserMenuPosition;
 use Filament\Http\Middleware\Authenticate;
@@ -35,14 +37,16 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->viteTheme('resources/css/filament/admin/theme.css')
             ->maxContentWidth(Width::Full)
-            ->topNavigation()
+            // ->topNavigation()
             ->spa()
-            ->login()
+            ->login(Login::class)
             ->breadcrumbs(false)
             ->sidebarWidth('20rem')
             // ->sidebarCollapsibleOnDesktop()
             ->globalSearch(false)
+            ->brandName(fn (): string => app(BrandSettingsService::class)->getBrowserTitle())
             ->brandLogo(fn () => view('filament.logo'))
+            ->favicon(fn (): ?string => app(BrandSettingsService::class)->getFaviconUrl())
             ->colors([
                 'primary' => Color::hex('#17324D'),
                 'secondary' => Color::hex('#245B85'),
@@ -82,7 +86,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->plugins([
                 FilamentShieldPlugin::make()
-                    ->navigationGroup('Pengaturan Akses')
+                    ->navigationGroup('Pengaturan Sistem')
                     ->navigationLabel('Peran & Izin'),
                 // FilamentSpatieLaravelBackupPlugin::make()
             ])
