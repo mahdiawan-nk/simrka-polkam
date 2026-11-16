@@ -249,11 +249,12 @@ it('previews and imports real 10_RKA_2026-2027_P3M.xlsx natively', function () {
         ->and((float) $header->pagu_budget)->not->toBe((float) $preview['summary']['total_proposed'])
         ->and((float) $header->pagu_budget)->not->toBe((float) $preview['summary']['total_approved'])
         ->and(RkaItem::where('rka_header_id', $header->id)->count())->toBe(53)
-        ->and(RkaAdjustment::where('rka_header_id', $header->id)->count())->toBe(23);
+        ->and(RkaAdjustment::where('rka_header_id', $header->id)->count())->toBe(28);
 
     $p3mAdjs = RkaAdjustment::where('rka_header_id', $header->id)->get();
-    expect($p3mAdjs->where('section_type', RkaAdjustment::SECTION_A)->count())->toBe(23)
-        ->and($p3mAdjs->whereNotNull('destination_unit_id')->count())->toBe(23)
+    expect($p3mAdjs->where('section_type', RkaAdjustment::SECTION_A)->count())->toBe(28)
+        ->and($p3mAdjs->where('action_type', RkaAdjustment::ACTION_MOVED)->whereNotNull('destination_unit_id')->count())->toBe(23)
+        ->and($p3mAdjs->where('action_type', RkaAdjustment::ACTION_REJECTED)->whereNull('destination_unit_id')->count())->toBe(5)
         ->and($p3mAdjs->whereNotNull('target_unit_id')->count())->toBe(0)
         ->and($p3mAdjs->whereNotNull('imported_rka_item_id')->count())->toBe(0)
         ->and($p3mAdjs->where('is_imported', true)->count())->toBe(0)
@@ -314,7 +315,7 @@ it('previews and imports real 19_RKA_2026-2027_Prodi_TIF.xlsx natively and block
         ->and((float) $header->pagu_budget)->not->toBe((float) $preview['summary']['total_proposed'])
         ->and((float) $header->pagu_budget)->not->toBe((float) $preview['summary']['total_approved'])
         ->and(RkaItem::where('rka_header_id', $header->id)->count())->toBe(106)
-        ->and(RkaAdjustment::where('rka_header_id', $header->id)->count())->toBe(37);
+        ->and(RkaAdjustment::where('rka_header_id', $header->id)->count())->toBe(39);
 });
 
 it('blocks native import when Usulan awal unit in RINGKASAN is missing without guessing pagu_budget', function () {

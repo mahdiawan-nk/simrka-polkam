@@ -239,10 +239,16 @@ it('supports importing approved excel from another unit/period into own DRAFT Rk
     $sectionA = RkaAdjustment::where('rka_header_id', $freshHeader->id)
         ->where('section_type', RkaAdjustment::SECTION_A)
         ->get();
-    expect($sectionA)->toHaveCount(23);
-    foreach ($sectionA as $adj) {
+    expect($sectionA)->toHaveCount(28)
+        ->and($sectionA->where('action_type', RkaAdjustment::ACTION_MOVED)->count())->toBe(23)
+        ->and($sectionA->where('action_type', RkaAdjustment::ACTION_REJECTED)->count())->toBe(5);
+    foreach ($sectionA->where('action_type', RkaAdjustment::ACTION_MOVED) as $adj) {
         expect($adj->destination_unit_id)->not->toBeNull()
             ->and($adj->target_unit_id)->toBeNull();
+    }
+    foreach ($sectionA->where('action_type', RkaAdjustment::ACTION_REJECTED) as $adj) {
+        expect($adj->destination_unit_id)->toBeNull()
+            ->and($adj->rka_item_id)->not->toBeNull();
     }
 });
 
@@ -369,10 +375,24 @@ it('shows Import Approved RKA action only for DRAFT, redirects confirmImport to 
         targetHeader: $ctx['draftHeader'],
     );
 
-    Livewire::withQueryParams(['draft' => $ctx['draftHeader']->id])
+    $lw = Livewire::withQueryParams(['draft' => $ctx['draftHeader']->id])
         ->test(ImportApprovedRkaPage::class)
         ->set('previewToken', $preview['token'])
         ->set('previewResult', $preview)
+        ->assertSee('Konfirmasi Import Approved RKA')
+        ->assertSee('Dampak Import')
+        ->assertSee('Ringkasan Validasi Preview')
+        ->assertSee('Ya, Import Approved RKA')
+        ->assertSee('Batal')
+        ->assertDontSee('wire:confirm', false);
+
+    // Double-submit guard saat isImporting = true
+    $lw->set('isImporting', true)
+        ->call('confirmImport')
+        ->assertNoRedirect();
+    expect($ctx['draftHeader']->fresh()->status)->toBe(RkaHeader::STATUS_DRAFT);
+
+    $lw->set('isImporting', false)
         ->call('confirmImport')
         ->assertRedirect(RkaHeaderResource::getUrl('review', ['record' => $ctx['draftHeader']->id]));
 

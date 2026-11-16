@@ -8,6 +8,7 @@
     $rekapByKelompok = $rekap;
 
     $rupiah = fn($value) => number_format((float) ($value ?? 0), 0, ',', '.');
+    $rupiahAbs = fn($value) => number_format(abs((float) ($value ?? 0)), 0, ',', '.');
 @endphp
 
 <div class="space-y-6 text-slate-800 dark:text-slate-100">
@@ -61,7 +62,7 @@
                         <td
                             class="whitespace-nowrap px-5 py-3.5 text-right font-mono font-semibold tabular-nums text-slate-900 dark:text-white">
                             <span
-                                class="mr-1 text-xs font-normal text-slate-400">Rp</span>{{ $rupiah($sum['usulan_awal'] ?? 0) }}
+                                class="mr-1 text-xs font-normal text-slate-400">Rp</span>{{ $rupiahAbs($sum['usulan_awal'] ?? 0) }}
                         </td>
                     </tr>
 
@@ -76,7 +77,7 @@
                         <td
                             class="whitespace-nowrap px-5 py-3.5 text-right font-mono tabular-nums text-slate-600 dark:text-slate-300">
                             <span
-                                class="mr-1 text-xs font-normal text-slate-400">Rp</span>{{ $rupiah($sum['dipindahkan'] ?? 0) }}
+                                class="mr-1 text-xs font-normal text-slate-400">Rp</span>{{ $rupiahAbs($sum['dipindahkan'] ?? 0) }}
                         </td>
                     </tr>
 
@@ -88,7 +89,7 @@
                         <td
                             class="whitespace-nowrap px-5 py-3.5 text-right font-mono tabular-nums text-slate-600 dark:text-slate-300">
                             <span
-                                class="mr-1 text-xs font-normal text-slate-400">Rp</span>{{ $rupiah($sum['pos_cost'] ?? 0) }}
+                                class="mr-1 text-xs font-normal text-slate-400">Rp</span>{{ $rupiahAbs($sum['pos_cost'] ?? 0) }}
                         </td>
                     </tr>
 
@@ -102,7 +103,7 @@
                         </td>
                         <td
                             class="whitespace-nowrap px-5 py-3.5 text-right font-mono font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
-                            <span class="mr-1 text-xs font-normal">Rp</span>{{ $rupiah($sum['tambahan_pusat'] ?? 0) }}
+                            <span class="mr-1 text-xs font-normal">Rp</span>{{ $rupiahAbs($sum['tambahan_pusat'] ?? 0) }}
                         </td>
                     </tr>
 
@@ -114,7 +115,7 @@
                         <td
                             class="whitespace-nowrap px-5 py-3.5 text-right font-mono tabular-nums text-slate-600 dark:text-slate-300">
                             <span
-                                class="mr-1 text-xs font-normal text-slate-400">Rp</span>{{ $rupiah($sum['adjustment_price'] ?? 0) }}
+                                class="mr-1 text-xs font-normal text-slate-400">Rp</span>{{ $rupiahAbs($sum['adjustment_price'] ?? 0) }}
                         </td>
                     </tr>
 
@@ -132,7 +133,7 @@
                         </td>
                         <td
                             class="whitespace-nowrap px-5 py-4 text-right font-mono text-base font-bold tabular-nums text-amber-700 dark:text-amber-300">
-                            <span class="mr-1 text-xs font-normal">Rp</span>{{ $rupiah($sum['usulan_dibahas'] ?? 0) }}
+                            <span class="mr-1 text-xs font-normal">Rp</span>{{ $rupiahAbs($sum['usulan_dibahas'] ?? 0) }}
                         </td>
                     </tr>
 
@@ -147,7 +148,7 @@
                         <td
                             class="whitespace-nowrap px-5 py-4 text-right font-mono text-base font-bold tabular-nums text-emerald-700 dark:text-emerald-300">
                             <span
-                                class="mr-1 text-xs font-normal">Rp</span>{{ $rupiah($sum['disetujui_setelah_review'] ?? 0) }}
+                                class="mr-1 text-xs font-normal">Rp</span>{{ $rupiahAbs($sum['disetujui_setelah_review'] ?? 0) }}
                         </td>
                     </tr>
 

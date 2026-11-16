@@ -9,6 +9,7 @@ use App\Models\RkaHeader;
 use App\Models\RkaIndicator;
 use App\Models\RkaItem;
 use App\Models\RkaLog;
+use App\Services\Rka\RkaReviewSummaryService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -69,41 +70,7 @@ class RkaReviewService
      */
     public function calculateSummaryData(RkaHeader $record): array
     {
-        $usulanAwal = (float) $record->pagu_budget;
-
-        $tambahanPusat = (float) $record->adjustments()
-            ->where('section_type', 'B')
-            ->sum('proposed_amount');
-
-        $dipindahkan = (float) $record->adjustments()
-            ->where('section_type', 'A')
-            ->where('action_type', 'MOVED')
-            ->sum('proposed_amount');
-
-        $postCost = (float) $record->adjustments()
-            ->where('section_type', 'A')
-            ->where('action_type', 'BUDGETED_ELSEWHERE')
-            ->sum('proposed_amount');
-
-        $usulanDibahas = (float) $record->items()
-            ->whereIn('status', ['REJECTED_WITH_ADJUSTMENT', 'REJECTED', 'APPROVED'])
-            ->sum('proposed_total');
-
-        $adjustmentPriceAndVolume = ($usulanAwal - $dipindahkan - $postCost + $tambahanPusat) - $usulanDibahas;
-        $disetujuiSetelahReview = (float) $record->calculateApprovedTotal();
-
-        $percentage = $usulanDibahas > 0 ? ($disetujuiSetelahReview / $usulanDibahas) * 100 : 0;
-
-        return [
-            'usulan_awal' => $usulanAwal,
-            'dipindahkan' => $dipindahkan,
-            'pos_cost' => $postCost,
-            'adjustment_price' => $adjustmentPriceAndVolume,
-            'tambahan_pusat' => $tambahanPusat,
-            'usulan_dibahas' => $usulanDibahas,
-            'disetujui_setelah_review' => $disetujuiSetelahReview,
-            'percentage' => round($percentage, 1),
-        ];
+        return app(RkaReviewSummaryService::class)->calculate($record);
     }
 
     /**
@@ -135,7 +102,7 @@ class RkaReviewService
 
         $getItemProposedAmount = function ($item): float {
             $status = $item->status ?? 'PENDING';
-            if (in_array($status, ['APPROVED', 'ACCEPTED', 'REDUCED', 'REJECTED_WITH_ADJUSTMENT'], true)) {
+            if (in_array($status, ['APPROVED', 'ACCEPTED', 'REDUCED', 'REJECTED', 'REJECTED_WITH_ADJUSTMENT'], true)) {
                 return (float) $item->proposed_total;
             }
 
@@ -350,6 +317,7 @@ class RkaReviewService
                     RkaItem::STATUS_APPROVED,
                     RkaItem::STATUS_ACCEPTED,
                     RkaItem::STATUS_REDUCED,
+                    RkaItem::STATUS_REJECTED,
                 ])->orWhere(function ($trimmedQuery): void {
                     $trimmedQuery->where('status', 'TRIMMED')
                         ->where(function ($approvalQuery): void {

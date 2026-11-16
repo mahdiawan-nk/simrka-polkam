@@ -50,6 +50,8 @@ class ImportApprovedRkaPage extends Page implements HasForms
 
     public ?RkaUnlockRequest $activeUnlockRequest = null;
 
+    public bool $isImporting = false;
+
     public static function canAccess(array $parameters = []): bool
     {
         $user = auth()->user();
@@ -228,6 +230,12 @@ class ImportApprovedRkaPage extends Page implements HasForms
 
     public function confirmImport(): void
     {
+        abort_unless(static::canAccess(), 403);
+
+        if ($this->isImporting) {
+            return;
+        }
+
         if (! $this->previewToken || ! $this->previewResult) {
             Notification::make()
                 ->title('Preview Diperlukan')
@@ -237,6 +245,8 @@ class ImportApprovedRkaPage extends Page implements HasForms
 
             return;
         }
+
+        $this->isImporting = true;
 
         try {
             $service = app(ApprovedRkaImportService::class);
@@ -291,11 +301,15 @@ class ImportApprovedRkaPage extends Page implements HasForms
 
             $this->redirect(RkaHeaderResource::getUrl('index'));
         } catch (Throwable $e) {
+            $this->dispatch('close-modal', id: 'confirm-approved-import-modal');
+
             Notification::make()
                 ->title('Import Gagal')
                 ->body($e->getMessage())
                 ->danger()
                 ->send();
+        } finally {
+            $this->isImporting = false;
         }
     }
 

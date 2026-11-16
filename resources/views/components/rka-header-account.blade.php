@@ -11,7 +11,7 @@
     if (!$isAllItems) {
         $currentItems = $currentItems->filter(function ($item): bool {
             $status = $item->status ?? 'PENDING';
-            if (in_array($status, ['APPROVED', 'ACCEPTED', 'REDUCED'], true)) {
+            if (in_array($status, ['APPROVED', 'ACCEPTED', 'REDUCED', 'REJECTED'], true)) {
                 return true;
             }
 

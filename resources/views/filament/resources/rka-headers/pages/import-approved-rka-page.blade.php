@@ -573,9 +573,6 @@
                     <div class="flex items-center justify-end gap-3">
                         @if(! $hasFatal)
                             @php
-                                $confirmPrompt = $this->draftHeaderId
-                                    ? 'Yakin ingin mengimpor data Approved RKA ke RKA Draft #' . $this->draftHeaderId . '? Pagu Budget akan diperbarui dari Usulan Awal Unit dan status RKA akan langsung menjadi APPROVED.'
-                                    : 'Yakin ingin menyimpan data Approved RKA ini? Setelah disimpan, RKA akan berstatus APPROVED dan terkunci otomatis.';
                                 $confirmLabel = match (true) {
                                     $this->draftHeaderId !== null => 'Konfirmasi & Impor Approved RKA',
                                     $this->reimportHeaderId !== null => 'Konfirmasi & Jalankan Import Ulang',
@@ -587,11 +584,145 @@
                                 color="success"
                                 icon="heroicon-o-check-circle"
                                 :disabled="$incompleteUnitsOnConfirm > 0"
-                                wire:click="confirmImport"
-                                :wire:confirm="$confirmPrompt"
+                                x-on:click="$dispatch('open-modal', { id: 'confirm-approved-import-modal' })"
                             >
                                 {{ $confirmLabel }}
                             </x-filament::button>
+
+                            <x-filament::modal
+                                id="confirm-approved-import-modal"
+                                width="2xl"
+                                icon="heroicon-o-document-arrow-up"
+                                icon-color="success"
+                                :close-by-clicking-away="false"
+                                :close-by-escaping="false"
+                            >
+                                <x-slot name="heading">
+                                    Konfirmasi Import Approved RKA
+                                </x-slot>
+
+                                <x-slot name="description">
+                                    Pastikan Anda telah memeriksa seluruh hasil preview sebelum melanjutkan proses import.
+                                </x-slot>
+
+                                @php
+                                    $modalTargetUnit = $this->targetHeader?->department?->name
+                                        ?? ($targetDraft['department_name'] ?? ($identitas['unit_kerja'] ?? '-'));
+                                    $modalFiscalYear = $this->targetHeader?->schedule?->fiscal_year
+                                        ?? ($targetDraft['fiscal_year'] ?? ($identitas['tahun_anggaran'] ?? '-'));
+                                    $modalHeaderId = $this->draftHeaderId ?? $this->reimportHeaderId;
+                                    $modalStatus = $this->targetHeader?->status
+                                        ?? ($targetDraft['status'] ?? 'DRAFT');
+                                    $modalPaguAwal = $targetDraft['new_pagu_budget']
+                                        ?? ($summary['pagu_awal_unit'] ?? ($identitas['pagu_anggaran'] ?? 0));
+                                    $modalValidationLabel = ($incompleteUnitsOnConfirm > 0 || $hasFatal)
+                                        ? 'Perlu Perhatian'
+                                        : 'Siap Diimpor (Valid)';
+                                @endphp
+
+                                <div class="space-y-4 text-sm text-gray-700 dark:text-gray-200">
+                                    {{-- Informasi RKA Tujuan --}}
+                                    <div class="rounded-xl border border-gray-200 bg-gray-50/70 p-4 dark:border-gray-700 dark:bg-gray-800/60">
+                                        <h4 class="mb-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                            Informasi RKA Tujuan
+                                        </h4>
+                                        <dl class="grid grid-cols-1 gap-x-4 gap-y-2 text-xs sm:grid-cols-2">
+                                            <div>
+                                                <dt class="text-gray-500 dark:text-gray-400">Unit / Departemen</dt>
+                                                <dd class="font-semibold text-gray-950 dark:text-white">{{ $modalTargetUnit }}</dd>
+                                            </div>
+                                            <div>
+                                                <dt class="text-gray-500 dark:text-gray-400">Tahun Anggaran</dt>
+                                                <dd class="font-semibold text-gray-950 dark:text-white">{{ $modalFiscalYear }}</dd>
+                                            </div>
+                                            <div>
+                                                <dt class="text-gray-500 dark:text-gray-400">ID RKA Draft</dt>
+                                                <dd class="font-semibold text-gray-950 dark:text-white">{{ $modalHeaderId ? '#' . $modalHeaderId : 'Baru' }}</dd>
+                                            </div>
+                                            <div>
+                                                <dt class="text-gray-500 dark:text-gray-400">Status Saat Ini</dt>
+                                                <dd>
+                                                    <x-filament::badge color="info">{{ $modalStatus }}</x-filament::badge>
+                                                </dd>
+                                            </div>
+                                        </dl>
+                                    </div>
+
+                                    {{-- Ringkasan Validasi --}}
+                                    <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900/60">
+                                        <h4 class="mb-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                            Ringkasan Validasi Preview
+                                        </h4>
+                                        <dl class="grid grid-cols-2 gap-x-4 gap-y-2.5 text-xs sm:grid-cols-3">
+                                            <div>
+                                                <dt class="text-gray-500 dark:text-gray-400">Total Item Belanja</dt>
+                                                <dd class="font-semibold text-gray-950 dark:text-white">{{ number_format((int) ($summary['total_belanja'] ?? count($belanjaRows)), 0, ',', '.') }} item</dd>
+                                            </div>
+                                            <div>
+                                                <dt class="text-gray-500 dark:text-gray-400">Total Penyesuaian</dt>
+                                                <dd class="font-semibold text-gray-950 dark:text-white">{{ number_format((int) ($summary['total_adjustment'] ?? count($adjustmentRows)), 0, ',', '.') }} baris</dd>
+                                            </div>
+                                            <div>
+                                                <dt class="text-gray-500 dark:text-gray-400">Status Validasi</dt>
+                                                <dd class="font-semibold text-emerald-700 dark:text-emerald-400">{{ $modalValidationLabel }}</dd>
+                                            </div>
+                                            <div>
+                                                <dt class="text-gray-500 dark:text-gray-400">Usulan Awal Unit</dt>
+                                                <dd class="font-mono font-semibold text-gray-950 dark:text-white">Rp {{ number_format((float) $modalPaguAwal, 0, ',', '.') }}</dd>
+                                            </div>
+                                            <div>
+                                                <dt class="text-gray-500 dark:text-gray-400">Total Nilai Usulan</dt>
+                                                <dd class="font-mono font-semibold text-gray-950 dark:text-white">Rp {{ number_format((float) ($summary['total_proposed'] ?? 0), 0, ',', '.') }}</dd>
+                                            </div>
+                                            <div>
+                                                <dt class="text-gray-500 dark:text-gray-400">Total Nilai Disetujui</dt>
+                                                <dd class="font-mono font-semibold text-emerald-700 dark:text-emerald-400">Rp {{ number_format((float) ($summary['total_approved'] ?? 0), 0, ',', '.') }}</dd>
+                                            </div>
+                                        </dl>
+                                    </div>
+
+                                    {{-- Dampak Import --}}
+                                    <div class="rounded-xl border border-sky-200 bg-sky-50/70 p-4 text-xs text-sky-900 dark:border-sky-800/70 dark:bg-sky-950/30 dark:text-sky-200">
+                                        <h4 class="mb-2 font-semibold text-sky-950 dark:text-sky-100">Dampak Import</h4>
+                                        <ol class="list-decimal space-y-1 pl-4">
+                                            <li>Data item belanja dan penyesuaian akan dimasukkan berdasarkan hasil preview.</li>
+                                            <li>Nilai <code>pagu_budget</code> akan diperbarui berdasarkan nilai Usulan Awal Unit dari workbook.</li>
+                                            <li>Status RKA akan langsung berubah menjadi <strong>APPROVED</strong> setelah proses import berhasil.</li>
+                                            <li>Data hasil import akan dapat dilihat melalui halaman <strong>Review RKA</strong>.</li>
+                                        </ol>
+                                    </div>
+
+                                    {{-- Peringatan --}}
+                                    <div class="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-xs text-amber-900 dark:border-amber-800/70 dark:bg-amber-950/30 dark:text-amber-200">
+                                        Proses ini akan mengubah data RKA Draft yang dipilih. Pastikan seluruh data dan hasil validasi sudah benar sebelum melanjutkan.
+                                    </div>
+                                </div>
+
+                                <x-slot name="footerActions">
+                                    <x-filament::button
+                                        type="button"
+                                        color="gray"
+                                        icon="heroicon-o-x-mark"
+                                        x-on:click="$dispatch('close-modal', { id: 'confirm-approved-import-modal' })"
+                                        wire:loading.attr="disabled"
+                                        wire:target="confirmImport"
+                                    >
+                                        Batal
+                                    </x-filament::button>
+
+                                    <x-filament::button
+                                        type="button"
+                                        color="success"
+                                        icon="heroicon-o-check-circle"
+                                        wire:click="confirmImport"
+                                        wire:loading.attr="disabled"
+                                        wire:target="confirmImport"
+                                    >
+                                        <span wire:loading.remove wire:target="confirmImport">Ya, Import Approved RKA</span>
+                                        <span wire:loading wire:target="confirmImport">Memproses Import...</span>
+                                    </x-filament::button>
+                                </x-slot>
+                            </x-filament::modal>
                         @endif
                     </div>
                 </div>

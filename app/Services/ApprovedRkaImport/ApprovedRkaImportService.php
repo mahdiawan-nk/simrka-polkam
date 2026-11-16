@@ -950,6 +950,8 @@ class ApprovedRkaImportService
             }
         }
 
+        $this->syncImplicitZeroApprovedSectionAAdjustments($header, $user->id);
+
         return [
             'createdCount' => $createdCount,
             'skippedCount' => $skippedCount,
@@ -1580,6 +1582,75 @@ class ApprovedRkaImportService
             if ($adjRefId !== '') {
                 $existingAdjRefs[] = $adjRefId;
             }
+        }
+
+        $this->syncImplicitZeroApprovedSectionAAdjustments($header);
+    }
+
+    /**
+     * Membuat histori penolakan otomatis pada Section A untuk item BELANJA dengan volume/nilai usulan > 0
+     * tetapi volume dan nilai disetujui = 0, apabila belum memiliki adjustment Section A.
+     */
+    private function syncImplicitZeroApprovedSectionAAdjustments(RkaHeader $header, ?int $adjustedByUserId = null): void
+    {
+        $zeroApprovedItems = RkaItem::query()
+            ->where('rka_header_id', $header->id)
+            ->where('status', RkaItem::STATUS_REJECTED)
+            ->where('proposed_volume', '>', 0)
+            ->where('unit_price', '>', 0)
+            ->where(function ($q): void {
+                $q->whereNull('approved_volume')->orWhere('approved_volume', '<=', 0);
+            })
+            ->where(function ($q): void {
+                $q->whereNull('approved_total')->orWhere('approved_total', '<=', 0);
+            })
+            ->get();
+
+        if ($zeroApprovedItems->isEmpty()) {
+            return;
+        }
+
+        $existingSectionAItemIds = RkaAdjustment::query()
+            ->where('rka_header_id', $header->id)
+            ->where('section_type', RkaAdjustment::SECTION_A)
+            ->whereNotNull('rka_item_id')
+            ->pluck('rka_item_id')
+            ->all();
+
+        foreach ($zeroApprovedItems as $item) {
+            if (in_array($item->id, $existingSectionAItemIds, true)) {
+                continue;
+            }
+
+            $sourceRef = $item->source_ref_id
+                ? "AUTO:REJECTED:{$item->source_ref_id}"
+                : "AUTO:REJECTED:ITEM:{$item->id}";
+
+            RkaAdjustment::updateOrCreate(
+                [
+                    'rka_header_id' => $header->id,
+                    'rka_item_id' => $item->id,
+                    'section_type' => RkaAdjustment::SECTION_A,
+                ],
+                [
+                    'source_ref_id' => $sourceRef,
+                    'rka_indicator_id' => $item->rka_indicator_id,
+                    'account_id' => $item->account_id,
+                    'section_name' => 'A. Usulan Dipindah / Tidak Dianggarkan di Unit Ini',
+                    'description' => $item->description,
+                    'destination_unit_id' => null,
+                    'target_unit_id' => null,
+                    'proposed_volume' => $item->proposed_volume,
+                    'unit_symbol' => $item->unit_symbol,
+                    'unit_price' => $item->unit_price,
+                    'proposed_amount' => $item->proposed_total,
+                    'approved_amount' => 0,
+                    'action_type' => RkaAdjustment::ACTION_REJECTED,
+                    'notes' => 'Ditolak pada proses review karena volume disetujui 0.',
+                    'adjusted_by' => $adjustedByUserId,
+                    'is_imported' => false,
+                ]
+            );
         }
     }
 
