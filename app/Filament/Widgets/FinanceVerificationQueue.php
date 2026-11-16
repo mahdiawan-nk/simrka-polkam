@@ -3,18 +3,19 @@
 namespace App\Filament\Widgets;
 
 use App\Models\FundRequest;
+use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
+use Filament\Actions\Action;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
-use Filament\Actions\Action;
-use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
 
 class FinanceVerificationQueue extends BaseWidget
 {
     use HasWidgetShield;
+
     protected static ?int $sort = 2;
 
-    protected int | string | array $columnSpan = 'full';
+    protected int|string|array $columnSpan = 'full';
 
     protected static ?string $heading = 'Priority Action Table (Antrean Verifikasi Keuangan)';
 
@@ -23,6 +24,7 @@ class FinanceVerificationQueue extends BaseWidget
         return $table
             ->query(
                 FundRequest::query()
+                    ->with('department:id,name')
                     ->where('status', 'submitted')
                     ->oldest('request_date')
             )
@@ -65,7 +67,7 @@ class FinanceVerificationQueue extends BaseWidget
                     ->icon('heroicon-m-clipboard-document-check')
                     ->color('primary')
                     ->button()
-                    ->url(fn(FundRequest $record): string => route('filament.admin.resources.fund-requests.edit', $record)),
+                    ->url(fn (FundRequest $record): string => route('filament.admin.resources.fund-requests.verify', $record)),
             ]);
     }
 }

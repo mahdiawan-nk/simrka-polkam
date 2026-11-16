@@ -11,13 +11,12 @@ use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Tables\Columns\Summarizers\Sum;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
-use Filament\Tables\Enums\FiltersLayout;
-
 
 class FundRequestsTable
 {
@@ -50,7 +49,7 @@ class FundRequestsTable
                     ->label('Nama Kegiatan')
                     ->searchable()
                     ->limit(30)
-                    ->tooltip(fn($record) => $record->activity_name),
+                    ->tooltip(fn ($record) => $record->activity_name),
 
                 TextColumn::make('total_requested')
                     ->label('Total Dimohonkan')
@@ -79,36 +78,36 @@ class FundRequestsTable
                 TextColumn::make('status')
                     ->label('Status')
                     ->badge()
-                    ->color(fn(string $state): string => match (strtolower($state)) {
-                        'draft'                => 'gray',
+                    ->color(fn (string $state): string => match (strtolower($state)) {
+                        'draft' => 'gray',
                         'pending', 'submitted' => 'warning',
-                        'approved'             => 'success',
-                        'rejected'             => 'danger',
-                        default                => 'primary',
+                        'approved' => 'success',
+                        'rejected' => 'danger',
+                        default => 'primary',
                     })
-                    ->formatStateUsing(fn(string $state): string => match (strtolower($state)) {
-                        'draft'     => 'Draft',
-                        'pending'   => 'Menunggu',
+                    ->formatStateUsing(fn (string $state): string => match (strtolower($state)) {
+                        'draft' => 'Draft',
+                        'pending' => 'Menunggu',
                         'submitted' => 'Diajukan',
-                        'approved'  => 'Disetujui',
-                        'rejected'  => 'Ditolak',
-                        default     => ucfirst($state),
+                        'approved' => 'Disetujui',
+                        'rejected' => 'Ditolak',
+                        default => ucfirst($state),
                     }),
 
                 TextColumn::make('approvals_count')
                     ->label('Log Approval')
                     ->counts('approvals')
-                    ->formatStateUsing(fn($state) => $state > 0 ? "{$state} Riwayat" : 'Belum Ada')
+                    ->formatStateUsing(fn ($state) => $state > 0 ? "{$state} Riwayat" : 'Belum Ada')
                     ->badge()
-                    ->color(fn($state) => $state > 0 ? 'info' : 'gray')
+                    ->color(fn ($state) => $state > 0 ? 'info' : 'gray')
                     ->icon('heroicon-o-clipboard-document-check')
                     ->alignCenter()
                     ->action(
                         Action::make('viewApprovalLogsFromColumn')
-                            ->modalHeading(fn($record) => "Riwayat Persetujuan - {$record->document_number}")
+                            ->modalHeading(fn ($record) => "Riwayat Persetujuan - {$record->document_number}")
                             ->modalSubmitAction(false)
                             ->modalCancelActionLabel('Tutup')
-                            ->modalContent(fn($record): View => view('filament.resources.fund-requests.modals.approval-logs', [
+                            ->modalContent(fn ($record): View => view('filament.resources.fund-requests.modals.approval-logs', [
                                 'record' => $record->load('approvals.user'),
                             ]))
                     ),
@@ -169,11 +168,11 @@ class FundRequestsTable
                 SelectFilter::make('status')
                     ->label('Status Pengajuan')
                     ->options([
-                        'draft'     => 'Draft',
+                        'draft' => 'Draft',
                         'submitted' => 'Diajukan',
-                        'pending'   => 'Menunggu',
-                        'approved'  => 'Disetujui',
-                        'rejected'  => 'Ditolak',
+                        'pending' => 'Menunggu',
+                        'approved' => 'Disetujui',
+                        'rejected' => 'Ditolak',
                     ]),
 
                 SelectFilter::make('department_id')
@@ -185,7 +184,7 @@ class FundRequestsTable
 
                 SelectFilter::make('fiscal_year')
                     ->label('Tahun Anggaran')
-                    ->options(fn() => array_combine(
+                    ->options(fn () => array_combine(
                         range(date('Y') + 1, date('Y') - 5),
                         range(date('Y') + 1, date('Y') - 5)
                     )),
@@ -200,30 +199,36 @@ class FundRequestsTable
                         return $query
                             ->when(
                                 $data['from'],
-                                fn(Builder $query, $date): Builder => $query->whereDate('request_date', '>=', $date),
+                                fn (Builder $query, $date): Builder => $query->whereDate('request_date', '>=', $date),
                             )
                             ->when(
                                 $data['until'],
-                                fn(Builder $query, $date): Builder => $query->whereDate('request_date', '<=', $date),
+                                fn (Builder $query, $date): Builder => $query->whereDate('request_date', '<=', $date),
                             );
                     }),
             ], layout: FiltersLayout::BeforeContent)
             ->recordActions([
                 ViewAction::make()
-                    ->url(fn($record) => FundRequestResource::getUrl('verify', ['record' => $record]))
+                    ->url(fn ($record) => FundRequestResource::getUrl('view', ['record' => $record]))
                     ->label('Lihat')
                     ->color('info'),
+
+                Action::make('verify')
+                    ->label('Verifikasi')
+                    ->icon('heroicon-o-clipboard-document-check')
+                    ->color('warning')
+                    ->visible(fn () => auth()->user()?->hasAnyRole(['keuangan', 'wadir_keuangan', 'direktur']) ?? false)
+                    ->url(fn ($record) => FundRequestResource::getUrl('verify', ['record' => $record])),
 
                 Action::make('previewPdf')
                     ->label('Cetak PDF')
                     ->icon('heroicon-o-printer')
                     ->color('success')
                     ->openUrlInNewTab()
-                    ->visible(fn($record) => strtolower($record->status) === 'approved')
-                    ->url(fn($record) => route('fund-requests.pdf-preview', ['record' => $record])),
+                    ->url(fn ($record) => route('fund-requests.pdf-preview', ['record' => $record])),
 
                 EditAction::make()
-                    ->visible(fn($record) => strtolower($record->status) === 'draft' || strtolower($record->status) === 'rejected')
+                    ->visible(fn ($record) => strtolower($record->status) === 'draft' || strtolower($record->status) === 'rejected')
                     ->label('Ubah'),
             ])
             ->toolbarActions([

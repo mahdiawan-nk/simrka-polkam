@@ -17,6 +17,7 @@ class FundRequest extends Model
         'request_date',
         'fiscal_year',
         'department_id',
+        'rka_header_id',
         'activity_name',
         'execution_date',
         'responsible_person',
@@ -50,16 +51,26 @@ class FundRequest extends Model
     }
 
     /**
+     * Approved RKA Header used as budget source for this fund request.
+     */
+    public function rkaHeader(): BelongsTo
+    {
+        return $this->belongsTo(RkaHeader::class, 'rka_header_id');
+    }
+
+    /**
      * User who created the request.
      */
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
     }
+
     public function verifications(): HasMany
     {
         return $this->hasMany(FundRequestVerification::class, 'fund_request_id');
     }
+
     /**
      * Itemized details for this fund request.
      */

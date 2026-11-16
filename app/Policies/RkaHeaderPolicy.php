@@ -106,7 +106,8 @@ class RkaHeaderPolicy
 
     protected function canAccessRecord(AuthUser $authUser, RkaHeader $rkaHeader): bool
     {
-        if ($authUser->hasAnyRole(['super_admin', 'direktur', 'keuangan', 'wadir_keuangan'])) {
+        if ($authUser->hasAnyRole(['super_admin', 'direktur', 'keuangan', 'wadir_keuangan'])
+            || $authUser->can('ViewAllUnits:RkaHeader')) {
             return true;
         }
 

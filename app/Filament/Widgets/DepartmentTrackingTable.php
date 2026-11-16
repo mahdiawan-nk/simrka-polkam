@@ -4,17 +4,19 @@ namespace App\Filament\Widgets;
 
 use App\Models\FundRequest;
 use App\Services\Context\Contracts\ContextManagerInterface;
+use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
+use Filament\Actions\Action;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
-use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
 
 class DepartmentTrackingTable extends BaseWidget
 {
     use HasWidgetShield;
+
     protected static ?int $sort = 2;
 
-    protected int | string | array $columnSpan = 'full';
+    protected int|string|array $columnSpan = 'full';
 
     protected static ?string $heading = 'Tracking Pengajuan Dana Terakhir';
 
@@ -83,6 +85,13 @@ class DepartmentTrackingTable extends BaseWidget
                         'rejected' => 'Rejected',
                         default => $state,
                     }),
+            ])
+            ->actions([
+                Action::make('view')
+                    ->label('Detail')
+                    ->icon('heroicon-m-eye')
+                    ->color('gray')
+                    ->url(fn (FundRequest $record): string => route('filament.admin.resources.fund-requests.view', $record)),
             ]);
     }
 }

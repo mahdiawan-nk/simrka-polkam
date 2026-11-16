@@ -12,6 +12,9 @@ use Maatwebsite\Excel\Facades\Excel;
 Route::middleware(['auth'])->group(function () {
     Route::get('/fund-requests/{record}/pdf-preview', [FundRequestPdfController::class, 'preview'])
         ->name('fund-requests.pdf-preview');
+
+    Route::get('/fund-requests/{record}/attachment/{index}', [FundRequestPdfController::class, 'attachment'])
+        ->name('fund-requests.attachment');
     Route::get('/database/backups/files/{backupFile}/download', DatabaseBackupDownloadController::class)
         ->withoutMiddleware(['auth'])
         ->middleware([Authenticate::class])

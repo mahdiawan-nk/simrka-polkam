@@ -3,8 +3,6 @@
 namespace App\Filament\Widgets;
 
 use App\Models\Department;
-use App\Models\DepartmentBudget;
-use App\Models\FundRequest;
 use App\Models\RkaSchedule;
 use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
 use Filament\Tables;
@@ -29,6 +27,9 @@ class WadirDepartmentUtilizationTable extends BaseWidget
             ->query(
                 Department::query()
                     ->whereHas('budgets', fn ($q) => $q->where('fiscal_year', $currentFiscalYear))
+                    ->withSum(['budgets as total_pagu' => fn ($q) => $q->where('fiscal_year', $currentFiscalYear)], 'allocated_amount')
+                    ->withSum(['fundRequests as total_approved_sum' => fn ($q) => $q->where('fiscal_year', $currentFiscalYear)->where('status', 'approved')], 'total_approved')
+                    ->withSum(['fundRequests as total_pending_sum' => fn ($q) => $q->where('fiscal_year', $currentFiscalYear)->whereIn('status', ['submitted', 'verified_kabakku', 'verified_wadir_bakku'])], 'total_requested')
             )
             ->paginated(false)
             ->columns([
@@ -37,96 +38,50 @@ class WadirDepartmentUtilizationTable extends BaseWidget
                     ->sortable()
                     ->searchable(),
 
-                Tables\Columns\TextColumn::make('id')
+                Tables\Columns\TextColumn::make('total_pagu')
                     ->label('Pagu Anggaran')
-                    ->formatStateUsing(function ($state) use ($currentFiscalYear) {
-                        $pagu = DepartmentBudget::where('department_id', $state)
-                            ->where('fiscal_year', $currentFiscalYear)
-                            ->sum('allocated_amount');
-
-                        return 'Rp '.number_format($pagu, 2, ',', '.');
-                    })
+                    ->formatStateUsing(fn ($state): string => 'Rp '.number_format((float) ($state ?? 0), 2, ',', '.'))
                     ->alignment('right')
                     ->fontFamily('mono'),
 
-                Tables\Columns\TextColumn::make('code')
+                Tables\Columns\TextColumn::make('total_approved_sum')
                     ->label('Disetujui (Approved)')
-                    ->formatStateUsing(function ($record) use ($currentFiscalYear) {
-                        $approved = FundRequest::where('department_id', $record->id)
-                            ->where('fiscal_year', $currentFiscalYear)
-                            ->where('status', 'approved')
-                            ->sum('total_approved');
-
-                        return 'Rp '.number_format($approved, 2, ',', '.');
-                    })
+                    ->formatStateUsing(fn ($state): string => 'Rp '.number_format((float) ($state ?? 0), 2, ',', '.'))
                     ->alignment('right')
                     ->fontFamily('mono')
                     ->color('success'),
 
-                Tables\Columns\TextColumn::make('level_code')
+                Tables\Columns\TextColumn::make('total_pending_sum')
                     ->label('Diproses (Pending)')
-                    ->formatStateUsing(function ($record) use ($currentFiscalYear) {
-                        $pending = FundRequest::where('department_id', $record->id)
-                            ->where('fiscal_year', $currentFiscalYear)
-                            ->whereIn('status', ['submitted', 'verified_kabakku', 'verified_wadir_bakku'])
-                            ->sum('total_requested');
-
-                        return 'Rp '.number_format($pending, 2, ',', '.');
-                    })
+                    ->formatStateUsing(fn ($state): string => 'Rp '.number_format((float) ($state ?? 0), 2, ',', '.'))
                     ->alignment('right')
                     ->fontFamily('mono')
                     ->color('warning'),
 
-                Tables\Columns\TextColumn::make('created_at')
+                Tables\Columns\TextColumn::make('sisa_pagu')
                     ->label('Sisa Pagu')
-                    ->formatStateUsing(function ($record) use ($currentFiscalYear) {
-                        $pagu = DepartmentBudget::where('department_id', $record->id)
-                            ->where('fiscal_year', $currentFiscalYear)
-                            ->sum('allocated_amount');
-                        $approved = FundRequest::where('department_id', $record->id)
-                            ->where('fiscal_year', $currentFiscalYear)
-                            ->where('status', 'approved')
-                            ->sum('total_approved');
-                        $pending = FundRequest::where('department_id', $record->id)
-                            ->where('fiscal_year', $currentFiscalYear)
-                            ->whereIn('status', ['submitted', 'verified_kabakku', 'verified_wadir_bakku'])
-                            ->sum('total_requested');
+                    ->state(function ($record): float {
+                        $pagu = (float) ($record->total_pagu ?? 0);
+                        $approved = (float) ($record->total_approved_sum ?? 0);
+                        $pending = (float) ($record->total_pending_sum ?? 0);
 
-                        $remaining = $pagu - ($approved + $pending);
-
-                        return 'Rp '.number_format($remaining, 2, ',', '.');
+                        return $pagu - ($approved + $pending);
                     })
+                    ->formatStateUsing(fn ($state): string => 'Rp '.number_format((float) $state, 2, ',', '.'))
                     ->alignment('right')
                     ->fontFamily('mono'),
 
-                Tables\Columns\TextColumn::make('updated_at')
+                Tables\Columns\TextColumn::make('absorption_percentage')
                     ->label('% Penyerapan')
-                    ->formatStateUsing(function ($record) use ($currentFiscalYear) {
-                        $pagu = DepartmentBudget::where('department_id', $record->id)
-                            ->where('fiscal_year', $currentFiscalYear)
-                            ->sum('allocated_amount');
-                        $approved = FundRequest::where('department_id', $record->id)
-                            ->where('fiscal_year', $currentFiscalYear)
-                            ->where('status', 'approved')
-                            ->sum('total_approved');
+                    ->state(function ($record): float {
+                        $pagu = (float) ($record->total_pagu ?? 0);
+                        $approved = (float) ($record->total_approved_sum ?? 0);
 
-                        $percentage = $pagu > 0 ? round(($approved / $pagu) * 100, 1) : 0;
-
-                        return $percentage.'%';
+                        return $pagu > 0 ? round(($approved / $pagu) * 100, 1) : 0.0;
                     })
+                    ->formatStateUsing(fn ($state): string => $state.'%')
                     ->badge()
-                    ->color(function ($record) use ($currentFiscalYear) {
-                        $pagu = DepartmentBudget::where('department_id', $record->id)
-                            ->where('fiscal_year', $currentFiscalYear)
-                            ->sum('allocated_amount');
-                        $approved = FundRequest::where('department_id', $record->id)
-                            ->where('fiscal_year', $currentFiscalYear)
-                            ->where('status', 'approved')
-                            ->sum('total_approved');
-                        $pct = $pagu > 0 ? ($approved / $pagu) * 100 : 0;
-
-                        return $pct > 90 ? 'danger' : ($pct > 75 ? 'warning' : 'success');
-                    })
+                    ->color(fn ($state): string => $state > 90 ? 'danger' : ($state > 75 ? 'warning' : 'success'))
                     ->alignment('center'),
             ]);
     }

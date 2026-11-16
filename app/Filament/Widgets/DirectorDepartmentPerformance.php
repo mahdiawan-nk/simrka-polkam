@@ -2,10 +2,7 @@
 
 namespace App\Filament\Widgets;
 
-use App\Models\Department;
-use App\Models\DepartmentBudget;
-use App\Models\FundRequest;
-use App\Models\RkaSchedule;
+use App\Services\Dashboard\DashboardMetricsService;
 use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
 use Filament\Widgets\Widget;
 
@@ -21,30 +18,9 @@ class DirectorDepartmentPerformance extends Widget
 
     protected function getViewData(): array
     {
-        $currentFiscalYear = RkaSchedule::currentFiscalYear();
-
-        $departments = Department::whereHas('budgets', fn ($q) => $q->where('fiscal_year', $currentFiscalYear))->get();
-
-        $performance = $departments->map(function ($dept) use ($currentFiscalYear) {
-            $pagu = DepartmentBudget::where('department_id', $dept->id)
-                ->where('fiscal_year', $currentFiscalYear)
-                ->sum('allocated_amount');
-
-            $approved = FundRequest::where('department_id', $dept->id)
-                ->where('fiscal_year', $currentFiscalYear)
-                ->where('status', 'approved')
-                ->sum('total_approved');
-
-            $percentage = $pagu > 0 ? round(($approved / $pagu) * 100, 1) : 0;
-
-            return [
-                'name' => $dept->name,
-                'code' => $dept->code,
-                'pagu' => $pagu,
-                'approved' => $approved,
-                'percentage' => $percentage,
-            ];
-        });
+        $service = app(DashboardMetricsService::class);
+        $context = $service->getActiveContext();
+        $performance = $service->getDepartmentComparison($context['fiscal_year']);
 
         return [
             'top5' => $performance->sortByDesc('percentage')->take(5)->values(),

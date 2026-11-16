@@ -26,15 +26,19 @@ class DirectorFinancialBreakdownMatrix extends BaseWidget
         return $table
             ->query(
                 Account::query()
-                    ->whereHas('fundRequestItems.fundRequest', function ($q) use ($currentFiscalYear) {
-                        $q->where('fiscal_year', $currentFiscalYear)
-                            ->where('status', 'approved');
+                    ->whereHas('fundRequestItems', function ($q) use ($currentFiscalYear) {
+                        $q->whereIn('verification_status', ['approved', 'partial'])
+                            ->whereHas('fundRequest', function ($sub) use ($currentFiscalYear) {
+                                $sub->where('fiscal_year', $currentFiscalYear)
+                                    ->where('status', 'approved');
+                            });
                     })
                     ->withSum(['fundRequestItems as total_realized' => function ($q) use ($currentFiscalYear) {
-                        $q->whereHas('fundRequest', function ($sub) use ($currentFiscalYear) {
-                            $sub->where('fiscal_year', $currentFiscalYear)
-                                ->where('status', 'approved');
-                        });
+                        $q->whereIn('verification_status', ['approved', 'partial'])
+                            ->whereHas('fundRequest', function ($sub) use ($currentFiscalYear) {
+                                $sub->where('fiscal_year', $currentFiscalYear)
+                                    ->where('status', 'approved');
+                            });
                     }], 'approved_price')
                     ->orderByDesc('total_realized')
                     ->limit(6)

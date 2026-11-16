@@ -1,398 +1,683 @@
 <!DOCTYPE html>
 <html lang="id">
-
 <head>
     <meta charset="UTF-8">
     <title>Formulir Permohonan Pencairan Dana - {{ $record->document_number }}</title>
     <style>
         @page {
             size: A4 portrait;
-            margin: 12mm 15mm;
+            margin: 12mm 14mm 14mm 14mm;
         }
 
         body {
-            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-family: DejaVu Sans, Arial, Helvetica, sans-serif;
             font-size: 8.5pt;
-            color: #000;
-            line-height: 1.2;
+            line-height: 1.38;
+            color: #1f2937;
+            background-color: #ffffff;
+            margin: 0;
+            padding: 0;
         }
 
-        header {
-            position: fixed;
-            top: -32mm;
-            /* Tarik header lebih tinggi ke atas */
-            left: 0;
-            right: 0;
-            height: 30mm;
-            text-align: center;
-        }
-
-        /* Kop Surat Gambar Tunggal */
-        .kop-container {
+        table {
             width: 100%;
-            text-align: center;
-            margin-bottom: 5px;
+            border-collapse: collapse;
+            background-color: #ffffff;
         }
 
-        .kop-img {
+        thead {
+            display: table-header-group;
+        }
+
+        tr {
+            page-break-inside: avoid;
+        }
+
+        .kop-wrapper {
+            margin-bottom: 8px;
+        }
+
+        .kop-full-img {
             width: 100%;
             height: auto;
-            max-height: 85px;
-            /* Menjaga agar tidak terlalu besar di kertas A4 */
-            object-fit: contain;
+            display: block;
         }
 
-        /* Title */
-        .title-box {
+        .kop-manual-table td {
+            vertical-align: middle;
+            border: none;
+            padding: 2px 4px;
+            background-color: #ffffff;
+        }
+
+        .kop-logo {
+            max-height: 62px;
+            max-width: 76px;
+            width: auto;
+            height: auto;
+        }
+
+        .kop-foundation {
+            font-size: 10pt;
+            font-weight: bold;
+            letter-spacing: 0.4px;
+            color: #111827;
+        }
+
+        .kop-institution {
+            font-size: 14.5pt;
+            font-weight: bold;
+            letter-spacing: 0.6px;
+            color: #111827;
+            margin: 1px 0;
+        }
+
+        .kop-address,
+        .kop-contact {
+            font-size: 7.5pt;
+            line-height: 1.25;
+            color: #374151;
+        }
+
+        .kop-divider {
+            border-top: 2px solid #111827;
+            border-bottom: 0.75px solid #111827;
+            height: 2px;
+            margin-top: 4px;
+            margin-bottom: 8px;
+        }
+
+        .doc-title-block {
             text-align: center;
-            border-top: 2px solid #000;
-            border-bottom: 2px solid #000;
-            padding: 4px 0;
-            margin-top: 5px;
+            margin-top: 6px;
             margin-bottom: 10px;
         }
 
-        .title-box h4 {
-            margin: 0;
-            font-size: 10pt;
+        .doc-title {
+            font-size: 11.5pt;
             font-weight: bold;
             text-transform: uppercase;
+            letter-spacing: 0.4px;
+            color: #111827;
         }
 
-        /* Meta Document */
+        .doc-subtitle {
+            font-size: 9pt;
+            color: #374151;
+            margin-top: 2px;
+        }
+
+        .doc-status-note {
+            font-size: 7.5pt;
+            color: #4b5563;
+            font-style: italic;
+            margin-top: 2px;
+        }
+
         .meta-table {
             width: 100%;
             margin-bottom: 8px;
         }
 
         .meta-table td {
-            padding: 1px 0;
-        }
-
-        /* Section Header */
-        .section-header {
-            background-color: #c5d9f1;
-            font-weight: bold;
-            padding: 2px 5px;
-            border: 1px solid #000;
-            margin-top: 6px;
-            text-transform: uppercase;
+            border: none;
+            padding: 1.5px 0;
             font-size: 8.5pt;
+            vertical-align: top;
+            background-color: #ffffff;
         }
 
-        /* Standard Table Styling */
-        table.data-table {
+        .meta-label {
+            width: 14%;
+            color: #374151;
+        }
+
+        .meta-colon {
+            width: 2%;
+            text-align: center;
+        }
+
+        .meta-value {
+            width: 84%;
+            font-weight: bold;
+            color: #111827;
+        }
+
+        .intro-text {
+            margin: 6px 0 10px 0;
+            font-size: 8.5pt;
+            color: #1f2937;
+            text-align: left;
+        }
+
+        .section-block {
+            margin-bottom: 11px;
+        }
+
+        .section-keep {
+            page-break-inside: avoid;
+        }
+
+        .section-heading {
+            text-align: left;
+            font-weight: bold;
+            font-size: 8.8pt;
+            color: #111827;
+            border-bottom: 1px solid #374151;
+            padding-bottom: 2.5px;
+            margin-bottom: 5px;
+        }
+
+        .kv-table {
+            width: 100%;
+            margin-bottom: 2px;
+        }
+
+        .kv-table td {
+            border: none;
+            padding: 2px 0;
+            vertical-align: top;
+            font-size: 8.5pt;
+            background-color: #ffffff;
+        }
+
+        .kv-label {
+            width: 30%;
+            color: #374151;
+        }
+
+        .kv-colon {
+            width: 2.5%;
+            text-align: center;
+            color: #374151;
+        }
+
+        .kv-value {
+            width: 67.5%;
+            color: #111827;
+        }
+
+        .data-table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: -1px;
+            margin-bottom: 4px;
+            background-color: #ffffff;
         }
 
-        table.data-table th,
-        table.data-table td {
-            border: 1px solid #000;
-            padding: 3px 4px;
+        .data-table th,
+        .data-table td {
+            border: 0.7px solid #9ca3af;
+            padding: 4px 5px;
+            vertical-align: top;
+            background-color: #ffffff;
+            color: #1f2937;
+        }
+
+        .data-table th {
+            font-weight: bold;
+            text-align: center;
+            font-size: 8pt;
+            color: #111827;
+            border-bottom: 1.1px solid #4b5563;
             vertical-align: middle;
         }
 
-        table.data-table th {
-            background-color: #f2f2f2;
-            text-align: center;
-            font-weight: bold;
+        .data-table td {
             font-size: 8pt;
         }
 
-        /* Helpers */
-        .text-center {
-            text-align: center;
-        }
-
-        .text-right {
-            text-align: right;
-        }
-
-        .font-bold {
+        .data-table .total-row td {
             font-weight: bold;
+            font-size: 8.3pt;
+            color: #111827;
+            border-top: 1.1px solid #4b5563;
+            background-color: #ffffff;
         }
 
-        .bg-light {
-            background-color: #f9f9f9;
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .text-left { text-align: left; }
+        .text-red { color: #b91c1c; }
+        .text-muted { color: #4b5563; }
+
+        .item-subnote {
+            display: block;
+            font-size: 7.2pt;
+            color: #4b5563;
+            font-style: italic;
+            margin-top: 1.5px;
         }
 
-        /* Signatures */
+        .terbilang-line {
+            margin-top: 4px;
+            margin-bottom: 2px;
+            font-size: 8.3pt;
+            font-style: italic;
+            color: #1f2937;
+        }
+
+        .footnote {
+            margin-top: 3px;
+            margin-bottom: 2px;
+            font-size: 7.4pt;
+            font-style: italic;
+            color: #4b5563;
+        }
+
+        .checklist-table {
+            width: 100%;
+            border: none;
+            margin-bottom: 2px;
+        }
+
+        .checklist-table td {
+            border: none;
+            padding: 2px 8px 2px 0;
+            width: 50%;
+            vertical-align: top;
+            font-size: 8.3pt;
+            background-color: #ffffff;
+            color: #1f2937;
+        }
+
+        .check-item {
+            margin-bottom: 3px;
+        }
+
+        .attachment-list {
+            padding-top: 4px;
+            font-size: 7.8pt;
+            color: #374151;
+        }
+
+        .signature-block {
+            margin-top: 16px;
+            page-break-inside: avoid;
+        }
+
         .sig-table {
             width: 100%;
-            margin-top: 15px;
-            border-collapse: collapse;
+            border: none;
         }
 
         .sig-table td {
+            border: none;
+            width: 33.33%;
             text-align: center;
             vertical-align: top;
-            width: 33.33%;
+            padding: 2px 6px;
+            font-size: 8.4pt;
+            background-color: #ffffff;
+            color: #111827;
         }
 
         .sig-space {
-            height: 45px;
+            height: 54px;
+        }
+
+        .director-block {
+            margin-top: 14px;
+            text-align: center;
+            font-size: 8.4pt;
+            color: #111827;
+            page-break-inside: avoid;
+        }
+
+        .director-space {
+            height: 52px;
         }
     </style>
 </head>
-
 <body>
+    @php
+        $pdf ??= app(\App\Services\FundRequest\FundRequestDetailService::class)->buildForPdf($record)['pdf'];
+        $header = $pdf['header'];
+        $signatures = $pdf['signatures'];
+        $items = $record->items;
+    @endphp
 
-    <!-- Kop Surat (Menggunakan Gambar Tunggal Kop Surat yang Sejajar) -->
-    <table style="width: 100%; border-collapse: collapse; margin-bottom: 2px;">
-        <tr>
-            <td style="padding: 0; text-align: center;">
-                <img src="{{ public_path('images/kop-surat.png') }}" style="width: 100%; height: auto; display: block;"
-                    alt="Kop Surat">
-            </td>
-        </tr>
-    </table>
+    {{-- KOP SURAT (DARI RKA SETTINGS: KONFIGURASI FORM PERMOHONAN PENCAIRAN DANA) --}}
+    <div class="kop-wrapper">
+        @if ($header['type'] === 'full_image' && $header['full_kop_data_uri'])
+            <img src="{{ $header['full_kop_data_uri'] }}" alt="Kop Surat" class="kop-full-img">
+        @else
+            <table class="kop-manual-table">
+                <tr>
+                    @if ($header['type'] === 'manual_two_logos' || ($header['type'] === 'manual_single_logo' && $header['single_logo_position'] === 'left'))
+                        <td style="width: 15%; text-align: left;">
+                            @if ($header['left_logo_data_uri'])
+                                <img src="{{ $header['left_logo_data_uri'] }}" alt="Logo Kiri" class="kop-logo">
+                            @endif
+                        </td>
+                    @endif
 
-    <!-- Title -->
-    <div class="title-box">
-        <h4>FORMULIR PERMOHONAN PENCAIRAN DANA</h4>
-        <div style="font-size: 8pt;">Tahun Anggaran {{ $record->fiscal_year }}</div>
+                    <td style="text-align: center;">
+                        @if ($header['foundation_name'])
+                            <div class="kop-foundation">{{ $header['foundation_name'] }}</div>
+                        @endif
+                        <div class="kop-institution">{{ $header['institution_name'] }}</div>
+                        @if ($header['address_line'])
+                            <div class="kop-address">{{ $header['address_line'] }}</div>
+                        @endif
+                        @if ($header['contact_line'])
+                            <div class="kop-contact">{{ $header['contact_line'] }}</div>
+                        @endif
+                    </td>
+
+                    @if ($header['type'] === 'manual_two_logos')
+                        <td style="width: 15%; text-align: right;">
+                            @if ($header['right_logo_data_uri'])
+                                <img src="{{ $header['right_logo_data_uri'] }}" alt="Logo Kanan" class="kop-logo">
+                            @endif
+                        </td>
+                    @elseif ($header['type'] === 'manual_single_logo' && $header['single_logo_position'] === 'right')
+                        <td style="width: 15%; text-align: right;">
+                            @if ($header['left_logo_data_uri'])
+                                <img src="{{ $header['left_logo_data_uri'] }}" alt="Logo Kanan" class="kop-logo">
+                            @endif
+                        </td>
+                    @endif
+                </tr>
+            </table>
+            @if ($header['show_divider_line'])
+                <div class="kop-divider"></div>
+            @endif
+        @endif
     </div>
 
-    <!-- Meta Info -->
+    {{-- JUDUL DOKUMEN --}}
+    <div class="doc-title-block">
+        <div class="doc-title">FORMULIR PERMOHONAN PENCAIRAN DANA</div>
+        <div class="doc-subtitle">Tahun Anggaran {{ $record->fiscal_year }}</div>
+        @if (strtolower((string) $record->status) !== 'approved')
+            <div class="doc-status-note">
+                Status: {{ $detail['status_label'] }} — Belum Disahkan (dokumen ini belum memperoleh pengesahan akhir Direktur)
+            </div>
+        @else
+            <div class="doc-status-note">
+                Status: {{ $detail['status_label'] }}
+            </div>
+        @endif
+    </div>
+
+    {{-- NOMOR & TANGGAL --}}
     <table class="meta-table">
         <tr>
-            <td style="width: 70px;">Nomor</td>
-            <td style="width: 10px;">:</td>
-            <td><strong>{{ $record->document_number }}</strong></td>
+            <td class="meta-label">Nomor</td>
+            <td class="meta-colon">:</td>
+            <td class="meta-value">{{ $record->document_number }}</td>
         </tr>
         <tr>
-            <td>Tanggal</td>
-            <td>:</td>
-            <td>{{ \Carbon\Carbon::parse($record->request_date)->translatedFormat('d F Y') }}</td>
+            <td class="meta-label">Tanggal</td>
+            <td class="meta-colon">:</td>
+            <td class="meta-value">{{ $pdf['request_date_formatted'] }}</td>
         </tr>
     </table>
 
-    <p style="margin: 4px 0;">Kepada Yth. Direktur Politeknik Kampar, melalui Wakil Direktur II Bidang Keuangan,
-        Kepegawaian dan Umum. Dengan ini kami mengajukan permohonan pencairan dana sebagai berikut:</p>
-
-    <!-- SECTION A -->
-    <div class="section-header">A. KEGIATAN</div>
-    <table class="data-table">
-        <tr>
-            <td style="width: 25%;" class="bg-light">Unit Kerja</td>
-            <td style="width: 75%;">{{ $record->department->name ?? '-' }}</td>
-        </tr>
-        <tr>
-            <td class="bg-light">Nama Kegiatan / Keperluan</td>
-            <td>{{ $record->activity_name }}</td>
-        </tr>
-        <tr>
-            <td class="bg-light">Waktu Pelaksanaan</td>
-            <td>{{ \Carbon\Carbon::parse($record->execution_date)->translatedFormat('d F Y') }}</td>
-        </tr>
-        <tr>
-            <td class="bg-light">Penanggung Jawab</td>
-            <td>{{ $record->responsible_person }}</td>
-        </tr>
-        <tr>
-            <td class="bg-light">Jenis Pencairan</td>
-            <td>{{ $record->disbursement_type }}</td>
-        </tr>
-    </table>
-
-    <!-- SECTION B -->
-    <div class="section-header">B. RINCIAN KEBUTUHAN</div>
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th style="width: 25px;">No</th>
-                <th style="width: 60px;">Kode Akun</th>
-                <th style="width: 130px;">Nama Akun</th>
-                <th>Uraian</th>
-                <th style="width: 35px;">Vol</th>
-                <th style="width: 40px;">Satuan</th>
-                <th style="width: 80px;">Harga Satuan</th>
-                <th style="width: 90px;">Jumlah (Rp)</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach ($record->items as $index => $item)
-                <tr>
-                    <td class="text-center">{{ $index + 1 }}</td>
-                    <td class="text-center">{{ $item->account->code ?? '-' }}</td>
-                    <td>{{ $item->account->name ?? '-' }}</td>
-                    <td>{{ $item->description }}</td>
-                    <td class="text-center">{{ number_format($item->volume, 0, ',', '.') }}</td>
-                    <td class="text-center">{{ $item->unit }}</td>
-                    <td class="text-right">{{ number_format($item->unit_price, 0, ',', '.') }}</td>
-                    <td class="text-right">{{ number_format($item->total_price, 0, ',', '.') }}</td>
-                </tr>
-            @endforeach
-            @for ($i = count($record->items); $i < 5; $i++)
-                <tr>
-                    <td class="text-center">&nbsp;</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                </tr>
-            @endfor
-        </tbody>
-        <tfoot>
-            <tr class="font-bold bg-light">
-                <td colspan="7" class="text-right">JUMLAH YANG DIMOHONKAN</td>
-                <td class="text-right">Rp {{ number_format($record->total_requested, 0, ',', '.') }}</td>
-            </tr>
-        </tfoot>
-    </table>
-
-    <div style="margin: 4px 0; font-style: italic;">
-        <strong>Terbilang:</strong> ({{ \Illuminate\Support\Str::title(terbilang($record->total_requested)) }}
-        Rupiah)
+    {{-- PENGANTAR --}}
+    <div class="intro-text">
+        Kepada Yth. Direktur Politeknik Kampar, melalui Wakil Direktur II Bidang Keuangan, Kepegawaian dan Umum.
+        Dengan ini kami mengajukan permohonan pencairan dana sebagai berikut:
     </div>
 
-    <!-- SECTION C -->
-    <div class="section-header">C. REKAP PER KODE AKUN (Otomatis)</div>
-    <table class="data-table">
-        <thead>
+    {{-- SECTION A. KEGIATAN --}}
+    <div class="section-block section-keep">
+        <div class="section-heading">A. KEGIATAN</div>
+        <table class="kv-table">
             <tr>
-                <th style="width: 25px;">No</th>
-                <th style="width: 70px;">Kode</th>
-                <th>Nama Akun</th>
-                <th style="width: 90px;">Jumlah Dimohonkan</th>
-                <th style="width: 90px;">Pagu Unit</th>
-                <th style="width: 70px;">Status</th>
+                <td class="kv-label">Unit Kerja</td>
+                <td class="kv-colon">:</td>
+                <td class="kv-value">{{ $record->department?->name ?? '-' }}</td>
             </tr>
-        </thead>
-        <tbody>
-            @php
-                $grouped = $record->items->groupBy('account_id');
-            @endphp
-            @foreach ($grouped as $accountId => $groupItems)
-                @php
-                    $acc = $groupItems->first()->account;
-                    $sumReq = $groupItems->sum('total_price');
-                    $pagu = $acc?->departmentBudgets->first()->allocated_amount ?? 0;
-                @endphp
-                <tr>
-                    <td class="text-center">{{ $loop->iteration }}</td>
-                    <td class="text-center">{{ $acc->code ?? '-' }}</td>
-                    <td>{{ $acc->name ?? '-' }}</td>
-                    <td class="text-right">{{ number_format($sumReq, 0, ',', '.') }}</td>
-                    <td class="text-right">{{ number_format($pagu, 0, ',', '.') }}</td>
-                    <td class="text-center">{{ $sumReq <= $pagu ? 'Sesuai pagu' : 'Melampaui' }}</td>
-                </tr>
-            @endforeach
-        </tbody>
-    </table>
-
-    <!-- SECTION D -->
-    <div class="section-header">D. PEMBAYARAN KEPADA</div>
-    <table class="data-table">
-        <tr>
-            <td style="width: 25%;" class="bg-light">Nama Penerima</td>
-            <td style="width: 75%;">{{ $record->recipient_name }}</td>
-        </tr>
-        <tr>
-            <td class="bg-light">Bank / No. Rekening</td>
-            <td>{{ $record->bank_account_info ?: '(Kosongkan jika tunai)' }}</td>
-        </tr>
-    </table>
-
-    <!-- SECTION E -->
-    <div class="section-header">E. LAMPIRAN</div>
-    <table class="data-table">
-        <tr>
-            <td style="width: 50%;">
-                [{{ in_array('TOR/KAK', $record->attachments ?? []) ? 'v' : ' ' }}] TOR / KAK Kegiatan<br>
-                [{{ in_array('RAB', $record->attachments ?? []) ? 'v' : ' ' }}] RAB rinci<br>
-                [{{ in_array('SK', $record->attachments ?? []) ? 'v' : ' ' }}] SK panitia / tim (untuk honor)
-            </td>
-            <td style="width: 50%;">
-                [{{ in_array('Penawaran', $record->attachments ?? []) ? 'v' : ' ' }}] Penawaran harga / nota /
-                kuitansi<br>
-                [{{ in_array('DaftarHadir', $record->attachments ?? []) ? 'v' : ' ' }}] Daftar hadir / undangan /
-                surat tugas<br>
-                [{{ in_array('Foto', $record->attachments ?? []) ? 'v' : ' ' }}] Foto / dokumentasi (untuk
-                penggantian)
-            </td>
-        </tr>
-    </table>
-
-    <!-- SECTION F -->
-    <div class="section-header">F. VERIFIKASI DAN PERSETUJUAN PER KODE (Diisi Bagian Keuangan)</div>
-    <table class="data-table">
-        <thead>
             <tr>
-                <th style="width: 25px;">No</th>
-                <th style="width: 60px;">Kode</th>
-                <th>Kode Final (Jika dikoreksi)</th>
-                <th>Sisa Pagu Sebelum (Rp)</th>
-                <th style="width: 90px;">Jumlah Disetujui (Rp)</th>
-                <th style="width: 70px;">Persetujuan</th>
-                <th style="width: 80px;">No. Bukti Register</th>
+                <td class="kv-label">Nama Kegiatan / Keperluan</td>
+                <td class="kv-colon">:</td>
+                <td class="kv-value">{{ $record->activity_name }}</td>
             </tr>
-        </thead>
-        <tbody>
-            @foreach ($record->verifications as $v)
+            <tr>
+                <td class="kv-label">Waktu Pelaksanaan</td>
+                <td class="kv-colon">:</td>
+                <td class="kv-value">{{ $pdf['execution_date_formatted'] }}</td>
+            </tr>
+            <tr>
+                <td class="kv-label">Penanggung Jawab</td>
+                <td class="kv-colon">:</td>
+                <td class="kv-value">{{ $record->responsible_person }}</td>
+            </tr>
+            <tr>
+                <td class="kv-label">Jenis Pencairan</td>
+                <td class="kv-colon">:</td>
+                <td class="kv-value">{{ $record->disbursement_type }}</td>
+            </tr>
+        </table>
+    </div>
+
+    {{-- SECTION B. RINCIAN KEBUTUHAN --}}
+    <div class="section-block">
+        <div class="section-heading">B. RINCIAN KEBUTUHAN (pilih kode akun di setiap baris)</div>
+        <table class="data-table">
+            <thead>
                 <tr>
-                    <td class="text-center">{{ $loop->iteration }}</td>
-                    <td class="text-center">{{ $v->account->code ?? '-' }}</td>
-                    <td class="text-center">{{ $v->finalAccount->code ?? '-' }}</td>
-                    <td class="text-right">{{ number_format($v->remaining_budget, 0, ',', '.') }}</td>
-                    <td class="text-right">{{ number_format($v->amount_approved, 0, ',', '.') }}</td>
-                    <td class="text-center">{{ $v->status }}</td>
-                    <td class="text-center">{{ $v->register_proof_number ?? '-' }}</td>
+                    <th style="width: 4%;">No</th>
+                    <th style="width: 10%;">Kode Akun</th>
+                    <th style="width: 18%;">Nama Akun (otomatis)</th>
+                    <th style="width: 29%;">Uraian</th>
+                    <th style="width: 7%;">Volume</th>
+                    <th style="width: 8%;">Satuan</th>
+                    <th style="width: 11%;">Harga Satuan</th>
+                    <th style="width: 13%;">Jumlah (Rp)</th>
                 </tr>
-            @endforeach
-        </tbody>
-        <tfoot>
-            <tr class="font-bold bg-light">
-                <td colspan="4" class="text-right">JUMLAH DISETUJUI</td>
-                <td class="text-right">Rp {{ number_format($record->total_approved, 0, ',', '.') }}</td>
-                <td colspan="2"></td>
+            </thead>
+            <tbody>
+                @forelse ($items as $index => $item)
+                    @php
+                        $vStatus = $item->verification_status;
+                    @endphp
+                    <tr>
+                        <td class="text-center">{{ $index + 1 }}</td>
+                        <td class="text-center">{{ $item->account?->code ?? $item->rka_account_code_snapshot ?? '-' }}</td>
+                        <td class="text-left">{{ $item->account?->name ?? $item->rka_account_name_snapshot ?? '-' }}</td>
+                        <td class="text-left">
+                            {{ $item->description }}
+                            @if ($vStatus === 'rejected')
+                                <span class="item-subnote">(Ditolak Keuangan)</span>
+                            @elseif ($vStatus === 'partial')
+                                <span class="item-subnote">(Disetujui sebagian: Rp {{ number_format((float) ($item->approved_price ?? 0), 0, ',', '.') }})</span>
+                            @endif
+                        </td>
+                        <td class="text-center">
+                            {{ rtrim(rtrim(number_format((float) $item->volume, 2, ',', '.'), '0'), ',') ?: '0' }}
+                        </td>
+                        <td class="text-center">{{ $item->unit }}</td>
+                        <td class="text-right">{{ number_format((float) $item->unit_price, 0, ',', '.') }}</td>
+                        <td class="text-right">{{ number_format((float) $item->total_price, 0, ',', '.') }}</td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="8" class="text-center text-muted">Belum ada rincian kebutuhan.</td>
+                    </tr>
+                @endforelse
+                <tr class="total-row">
+                    <td colspan="7" class="text-right">JUMLAH YANG DIMOHONKAN</td>
+                    <td class="text-right" style="white-space: nowrap;">Rp {{ number_format($detail['summary']['total_requested'], 0, ',', '.') }}</td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="terbilang-line">
+            <strong>Terbilang:</strong> &nbsp;({{ $pdf['terbilang'] }})
+        </div>
+    </div>
+
+    {{-- SECTION C. REKAP PER KODE AKUN --}}
+    <div class="section-block {{ count($pdf['section_c_rows']) <= 10 ? 'section-keep' : '' }}">
+        <div class="section-heading">C. REKAP PER KODE AKUN (otomatis)</div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th style="width: 5%;">No</th>
+                    <th style="width: 11%;">Kode</th>
+                    <th style="width: 26%;">Nama Akun</th>
+                    <th style="width: 20%;">Catatan</th>
+                    <th style="width: 14%;">Jumlah Dimohonkan</th>
+                    <th style="width: 13%;">Pagu Unit</th>
+                    <th style="width: 11%;">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse ($pdf['section_c_rows'] as $idx => $row)
+                    <tr>
+                        <td class="text-center">{{ $idx + 1 }}</td>
+                        <td class="text-center">{{ $row['code'] }}</td>
+                        <td class="text-left">{{ $row['name'] }}</td>
+                        <td class="text-left {{ $row['is_centralized'] ? 'text-red' : '' }}">{{ $row['catatan'] }}</td>
+                        <td class="text-right">{{ number_format($row['total_requested'], 0, ',', '.') }}</td>
+                        <td class="text-right">{{ number_format($row['pagu_unit'], 0, ',', '.') }}</td>
+                        <td class="text-center">{{ $row['status'] }}</td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="7" class="text-center text-muted">Belum ada rincian kode akun.</td>
+                    </tr>
+                @endforelse
+            </tbody>
+        </table>
+        <p class="footnote">
+            Catatan merah berarti pos dikelola terpusat; ajukan ke unit pengelolanya. Pagu adalah pagu setahun (bukan sisa); sisa pagu diperiksa bendahara.
+        </p>
+    </div>
+
+    {{-- SECTION D. PEMBAYARAN KEPADA --}}
+    <div class="section-block section-keep">
+        <div class="section-heading">D. PEMBAYARAN KEPADA</div>
+        <table class="kv-table">
+            <tr>
+                <td class="kv-label">Nama Penerima</td>
+                <td class="kv-colon">:</td>
+                <td class="kv-value">{{ $record->recipient_name ?: '-' }}</td>
             </tr>
-        </tfoot>
-    </table>
+            <tr>
+                <td class="kv-label">Bank / No. Rekening (kosongkan jika tunai)</td>
+                <td class="kv-colon">:</td>
+                <td class="kv-value">{{ filled($record->bank_account_info) ? $record->bank_account_info : '' }}</td>
+            </tr>
+        </table>
+    </div>
 
-    <!-- Tanda Tangan -->
-    <table class="sig-table">
-        <tr>
-            <td colspan="3" style="text-align: right; padding-bottom: 10px;">
-                Bangkinang, {{ \Carbon\Carbon::parse($record->updated_at)->translatedFormat('d F Y') }}
-            </td>
-        </tr>
-        <tr>
-            <td>
-                Pemohon,<br>
-                <strong>{{ $record->department->name ?? 'Unit Kerja' }}</strong>
-                <div class="sig-space"></div>
-                <strong>({{ $record->responsible_person }})</strong>
-            </td>
-            <td>
-                Diverifikasi,<br>
-                <strong>Kabag KKU</strong>
-                <div class="sig-space"></div>
-                <strong>(Indah Purnama Putri, S.Pd., M.Si)</strong>
-            </td>
-            <td>
-                Disetujui,<br>
-                <strong>Wakil Direktur II</strong>
-                <div class="sig-space"></div>
-                <strong>(Nur Asma Deli, ST., M.Si)</strong>
-            </td>
-        </tr>
-        <tr>
-            <td colspan="3" style="text-align: center; padding-top: 15px;">
-                Menyetujui,<br>
-                <strong>Direktur Politeknik Kampar</strong>
-                <div class="sig-space"></div>
-                <strong><u>Dr. Ir. Nina Veronika, ST., M.Sc., IPM</u></strong><br>
-                NRP. 110806009
-            </td>
-        </tr>
-    </table>
+    {{-- SECTION E. LAMPIRAN --}}
+    <div class="section-block section-keep">
+        <div class="section-heading">E. LAMPIRAN (beri tanda &#10003;)</div>
+        <table class="checklist-table">
+            <tr>
+                <td>
+                    <div class="check-item">&#9744; &nbsp; TOR / KAK kegiatan</div>
+                    <div class="check-item">&#9744; &nbsp; RAB rinci</div>
+                    <div class="check-item">&#9744; &nbsp; SK panitia / tim (untuk honor)</div>
+                </td>
+                <td>
+                    <div class="check-item">&#9744; &nbsp; Penawaran harga / nota / kuitansi</div>
+                    <div class="check-item">&#9744; &nbsp; Daftar hadir / undangan / surat tugas</div>
+                    <div class="check-item">&#9744; &nbsp; Foto / dokumentasi (untuk penggantian)</div>
+                </td>
+            </tr>
+        </table>
+        @if (! empty($detail['attachments']))
+            <div class="attachment-list">
+                <strong>Berkas terunggah ({{ count($detail['attachments']) }}):</strong>
+                {{ collect($detail['attachments'])->pluck('name')->implode(', ') }}
+            </div>
+        @endif
+    </div>
 
+    {{-- SECTION F. VERIFIKASI DAN PERSETUJUAN PER KODE --}}
+    <div class="section-block">
+        <div class="section-heading">F. VERIFIKASI DAN PERSETUJUAN PER KODE (diisi Bagian Keuangan)</div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th style="width: 5%;">No</th>
+                    <th style="width: 11%;">Kode</th>
+                    <th style="width: 16%;">Kode Final (jika dikoreksi)</th>
+                    <th style="width: 19%;">Sisa Pagu Sebelum (Rp)</th>
+                    <th style="width: 17%;">Jumlah Disetujui (Rp)</th>
+                    <th style="width: 16%;">Persetujuan</th>
+                    <th style="width: 16%;">No. Bukti Register</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse ($pdf['section_f_rows'] as $idx => $fRow)
+                    <tr>
+                        <td class="text-center">{{ $idx + 1 }}</td>
+                        <td class="text-center">{{ $fRow['code'] }}</td>
+                        <td class="text-center">{{ $fRow['final_code'] }}</td>
+                        <td class="text-right">
+                            {{ $fRow['remaining_budget'] !== null ? number_format($fRow['remaining_budget'], 0, ',', '.') : '' }}
+                        </td>
+                        <td class="text-right">
+                            {{ $fRow['amount_approved'] !== null ? number_format($fRow['amount_approved'], 0, ',', '.') : '' }}
+                        </td>
+                        <td class="text-center">{{ $fRow['status'] }}</td>
+                        <td class="text-center">{{ $fRow['register_proof_number'] }}</td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="7" class="text-center text-muted">Belum ada data verifikasi.</td>
+                    </tr>
+                @endforelse
+                <tr class="total-row">
+                    <td colspan="4" class="text-right">JUMLAH DISETUJUI</td>
+                    <td class="text-right">Rp {{ number_format($pdf['section_f_total'], 0, ',', '.') }}</td>
+                    <td colspan="2"></td>
+                </tr>
+            </tbody>
+        </table>
+        <p class="footnote">
+            Pilih &#10004; Disetujui (jumlah otomatis sama dengan yang dimohonkan), &#10008; Ditolak (jumlah 0), atau &#9680; Disetujui sebagian lalu ketik jumlah yang disetujui. Hanya kode yang disetujui yang dicatat di Register.
+        </p>
+    </div>
+
+    {{-- BLOK TANDA TANGAN --}}
+    <div class="signature-block">
+        <table class="sig-table">
+            <tr>
+                <td>&nbsp;</td>
+                <td>&nbsp;</td>
+                <td>{{ $signatures['signing_place'] }}, {{ $signatures['signing_date'] }}</td>
+            </tr>
+            <tr>
+                <td>
+                    <div>{{ $signatures['pemohon']['stage_label'] }}</div>
+                    <div><strong>{{ $signatures['pemohon']['role_title'] }}</strong></div>
+                </td>
+                <td>
+                    <div>{{ $signatures['kabakku']['stage_label'] }}</div>
+                    <div><strong>{{ $signatures['kabakku']['role_title'] }}</strong></div>
+                </td>
+                <td>
+                    <div>{{ $signatures['wadir']['stage_label'] }}</div>
+                    <div><strong>{{ $signatures['wadir']['role_title'] }}</strong></div>
+                </td>
+            </tr>
+            <tr>
+                <td class="sig-space">&nbsp;</td>
+                <td class="sig-space">&nbsp;</td>
+                <td class="sig-space">&nbsp;</td>
+            </tr>
+            <tr>
+                <td>({{ $signatures['pemohon']['name'] }})</td>
+                <td>({{ $signatures['kabakku']['name'] }})</td>
+                <td>({{ $signatures['wadir']['name'] }})</td>
+            </tr>
+        </table>
+
+        <div class="director-block">
+            <div>{{ $signatures['direktur']['stage_label'] }}</div>
+            <div><strong>{{ $signatures['direktur']['role_title'] }}</strong></div>
+            <div class="director-space">&nbsp;</div>
+            <div><strong>{{ $signatures['direktur']['name'] }}</strong></div>
+            @if ($signatures['direktur']['nip'] !== '')
+                <div>NRP. {{ $signatures['direktur']['nip'] }}</div>
+            @endif
+        </div>
+    </div>
 </body>
-
 </html>

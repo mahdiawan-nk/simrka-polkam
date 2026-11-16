@@ -2,17 +2,19 @@
 
 namespace App\Filament\Resources\FundRequests\Pages;
 
+use App\Filament\Resources\FundRequests\Concerns\InteractsWithApprovedRkaFundRequest;
 use App\Filament\Resources\FundRequests\FundRequestResource;
-use App\Models\Account;
-use App\Models\DepartmentBudget;
 use App\Services\Context\ContextManager;
+use App\Services\FundRequest\FundRequestBudgetService;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Concerns\InteractsWithRecord;
 use Filament\Resources\Pages\Page;
 use Illuminate\Validation\Rule;
+use InvalidArgumentException;
 
 class EditFundRequestCustom extends Page
 {
+    use InteractsWithApprovedRkaFundRequest;
     use InteractsWithRecord;
 
     protected static string $resource = FundRequestResource::class;
@@ -54,14 +56,11 @@ class EditFundRequestCustom extends Page
 
     public function mount(int|string $record): void
     {
-        // 1. Resolve Record dari Route parameter
-        $this->record = $this->resolveRecord($record)->load(['approvals.user', 'items']);
+        $this->record = $this->resolveRecord($record)->load(['approvals.user', 'items.account', 'items.rkaItem']);
 
         $user = auth()->user();
         abort_unless($user && $user->can('update', $this->record), 403);
-        // $this->record = $this->resolveRecord($record);
 
-        // 2. Populate Header & General Info
         $this->document_number = $this->record->document_number;
         $this->request_date = $this->record->request_date ? date('Y-m-d', strtotime($this->record->request_date)) : '';
         $this->fiscal_year = $this->record->fiscal_year;
@@ -74,26 +73,42 @@ class EditFundRequestCustom extends Page
         $this->bank_account_info = $this->record->bank_account_info;
         $this->attachments = $this->record->attachments ?? [];
 
-        // 3. Populate Items dari Relasi Database
+        $this->setDepartmentsActive();
+        $this->resolveRkaSourceContext();
+
+        $budgetService = app(FundRequestBudgetService::class);
+        $rkaItemIds = $this->record->items->pluck('rka_item_id')->filter()->map(fn ($id) => (int) $id)->all();
+        $usedByItem = $budgetService->getUsedAmountByRkaItemIds($rkaItemIds, $this->record->id);
+
         $this->items = [];
         foreach ($this->record->items as $item) {
+            $rkaItem = $item->rkaItem;
+            $approvedTotal = (float) ($rkaItem?->approved_total ?? $item->rka_approved_total_snapshot ?? 0);
+            $approvedVol = (float) ($rkaItem?->approved_volume ?? $item->rka_approved_volume_snapshot ?? 0);
+            $remainingAmount = $rkaItem
+                ? max(0.0, round($approvedTotal - ($usedByItem[$rkaItem->id] ?? 0.0), 2))
+                : 0.0;
+
             $this->items[] = [
-                'id' => $item->id, // Simpan ID untuk membedakan update/create
+                'id' => $item->id,
+                'rka_item_id' => $item->rka_item_id,
                 'account_id' => $item->account_id,
+                'account_code' => $item->account?->code ?? $item->rka_account_code_snapshot ?? '-',
+                'account_name' => $item->account?->name ?? $item->rka_account_name_snapshot ?? '-',
                 'description' => $item->description,
+                'approved_volume' => $approvedVol,
+                'approved_total' => $approvedTotal,
+                'remaining_amount' => $remainingAmount,
                 'volume' => (float) $item->volume,
                 'unit' => $item->unit,
                 'unit_price' => (float) $item->unit_price,
                 'total_price' => (float) $item->total_price,
-                'approved_volume' => $item->approved_volume,
+                'approved_volume_verified' => $item->approved_volume,
                 'approved_price' => $item->approved_price,
                 'verification_status' => $item->verification_status,
                 'finance_note' => $item->finance_note,
             ];
         }
-
-        // Kunci department_id jika context aktif menentukan department khusus
-        $this->setDepartmentsActive();
     }
 
     public function setDepartmentsActive(): void
@@ -108,98 +123,18 @@ class EditFundRequestCustom extends Page
         }
     }
 
-    public function addItemRow(): void
-    {
-        $this->items[] = [
-            'id' => null, // Item baru belum memiliki ID
-            'account_id' => null,
-            'description' => '',
-            'volume' => 1,
-            'unit' => 'Unit',
-            'unit_price' => 0,
-            'total_price' => 0,
-        ];
-    }
-
-    public function removeItemRow(int $index): void
-    {
-        unset($this->items[$index]);
-        $this->items = array_values($this->items);
-    }
-
-    public function updatedItems(): void
-    {
-        foreach ($this->items as $index => $item) {
-            $vol = (float) ($item['volume'] ?? 0);
-            $price = (float) ($item['unit_price'] ?? 0);
-            $this->items[$index]['total_price'] = $vol * $price;
-        }
-    }
-
-    public function getTotalRequestedProperty(): float
-    {
-        return array_sum(array_column($this->items, 'total_price'));
-    }
-
-    /**
-     * Hitung Rekapitulasi per Kode Akun secara Realtime (Bagian C)
-     */
-    public function getAccountSummariesProperty(): array
-    {
-        $summaries = [];
-
-        foreach ($this->items as $item) {
-            if (empty($item['account_id'])) {
-                continue;
-            }
-
-            $accountId = $item['account_id'];
-            $totalPrice = (float) ($item['total_price'] ?? 0);
-            $status = $item['verification_status'] ?? null;
-
-            // Ambil nominal approved jika ada
-            $approvedPrice = (float) ($item['approved_price'] ?? 0);
-
-            if (! isset($summaries[$accountId])) {
-                $account = Account::find($accountId);
-
-                $paguAmount = 0;
-                if ($this->department_id) {
-                    $pagu = DepartmentBudget::where('department_id', $this->department_id)
-                        ->where('account_id', $accountId)
-                        ->where('fiscal_year', $this->fiscal_year)
-                        ->first();
-                    $paguAmount = $pagu?->allocated_amount ?? 0;
-                }
-
-                $summaries[$accountId] = [
-                    'account_code' => $account?->code ?? '-',
-                    'account_name' => $account?->name ?? '-',
-                    'note' => $account?->managed_by_note ?? '',
-                    'total_requested' => 0,
-                    'total_approved' => 0,
-                    'total_rejected' => 0,
-                    'pagu_unit' => $paguAmount,
-                ];
-            }
-
-            // Akumulasi total dimohonkan
-            $summaries[$accountId]['total_requested'] += $totalPrice;
-
-            // Akumulasi berdasarkan status verifikasi
-            if (in_array($status, ['approved', 'partial'], true)) {
-                $summaries[$accountId]['total_approved'] += $approvedPrice;
-            } elseif ($status === 'rejected') {
-                $summaries[$accountId]['total_rejected'] += $totalPrice;
-            }
-        }
-
-        return array_values($summaries);
-    }
-
     public function save(): void
     {
-        // Validasi data (document_number di-ignore untuk record saat ini)
+        if ($this->rkaSourceError !== null || $this->rkaHeaderId === null) {
+            Notification::make()
+                ->title('Sumber RKA Approved Tidak Tersedia')
+                ->body($this->rkaSourceError ?? 'Belum tersedia RKA yang telah disahkan untuk unit Anda pada periode anggaran aktif.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
         $this->validate([
             'document_number' => [
                 'required',
@@ -213,52 +148,35 @@ class EditFundRequestCustom extends Page
             'responsible_person' => 'required|string',
             'recipient_name' => 'required|string',
             'items' => 'required|array|min:1',
-            'items.*.account_id' => 'required|exists:accounts,id',
-            'items.*.description' => 'required|string',
+            'items.*.rka_item_id' => 'required|integer|exists:rka_items,id',
             'items.*.volume' => 'required|numeric|min:0.01',
-            'items.*.unit_price' => 'required|numeric|min:0',
         ]);
 
-        // 1. Update Header Permohonan
-        $this->record->update([
-            'document_number' => $this->document_number,
-            'request_date' => $this->request_date,
-            'fiscal_year' => $this->fiscal_year,
-            'department_id' => $this->department_id,
-            'activity_name' => $this->activity_name,
-            'execution_date' => $this->execution_date,
-            'responsible_person' => $this->responsible_person,
-            'disbursement_type' => $this->disbursement_type,
-            'recipient_name' => $this->recipient_name,
-            'bank_account_info' => $this->bank_account_info,
-            'attachments' => $this->attachments,
-            'total_requested' => $this->totalRequested,
-            'status' => $this->record->status, // Tetap pertahankan status saat ini
-        ]);
+        try {
+            app(FundRequestBudgetService::class)->updateFundRequest(
+                user: auth()->user(),
+                fundRequest: $this->record,
+                headerData: [
+                    'document_number' => $this->document_number,
+                    'request_date' => $this->request_date,
+                    'activity_name' => $this->activity_name,
+                    'execution_date' => $this->execution_date,
+                    'responsible_person' => $this->responsible_person,
+                    'disbursement_type' => $this->disbursement_type,
+                    'recipient_name' => $this->recipient_name,
+                    'bank_account_info' => $this->bank_account_info,
+                    'attachments' => $this->attachments,
+                ],
+                rawItems: $this->items,
+            );
+        } catch (InvalidArgumentException $e) {
+            Notification::make()
+                ->title('Validasi Anggaran Gagal')
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
 
-        // 2. Sinkronisasi Items (Update, Create, Delete)
-        $existingItemIds = collect($this->items)->pluck('id')->filter()->toArray();
-
-        // Hapus item dari database yang telah di-remove dari UI oleh user
-        $this->record->items()->whereNotIn('id', $existingItemIds)->delete();
-
-        // Update atau Tambah Item Baru
-        foreach ($this->items as $item) {
-            if (! empty($item['account_id']) && ! empty($item['description'])) {
-                $totalPrice = $item['volume'] * $item['unit_price'];
-
-                $this->record->items()->updateOrCreate(
-                    ['id' => $item['id'] ?? null],
-                    [
-                        'account_id' => $item['account_id'],
-                        'description' => $item['description'],
-                        'volume' => $item['volume'],
-                        'unit' => $item['unit'],
-                        'unit_price' => $item['unit_price'],
-                        'total_price' => $totalPrice,
-                    ]
-                );
-            }
+            return;
         }
 
         Notification::make()

@@ -3,17 +3,19 @@
 namespace App\Filament\Widgets;
 
 use App\Models\FundRequest;
+use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
+use Filament\Actions\Action;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
-use Filament\Actions\Action;
-use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
+
 class DirectorExecutiveApprovalQueue extends BaseWidget
 {
     use HasWidgetShield;
+
     protected static ?int $sort = 2;
 
-    protected int | string | array $columnSpan = 'full';
+    protected int|string|array $columnSpan = 'full';
 
     protected static ?string $heading = 'Executive Approval Queue (Antrean Persetujuan Direktur)';
 
@@ -22,6 +24,7 @@ class DirectorExecutiveApprovalQueue extends BaseWidget
         return $table
             ->query(
                 FundRequest::query()
+                    ->with('department:id,name')
                     ->where('status', 'verified_wadir_bakku')
                     ->latest('request_date')
             )
@@ -62,7 +65,7 @@ class DirectorExecutiveApprovalQueue extends BaseWidget
                     ->icon('heroicon-m-check-badge')
                     ->color('success')
                     ->button()
-                    ->url(fn(FundRequest $record): string => route('filament.admin.resources.fund-requests.edit', $record)),
+                    ->url(fn (FundRequest $record): string => route('filament.admin.resources.fund-requests.verify', $record)),
             ]);
     }
 }

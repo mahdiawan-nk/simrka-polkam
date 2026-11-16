@@ -123,6 +123,14 @@ class RkaItem extends Model
         return $this->hasMany(RkaAdjustment::class, 'rka_item_id');
     }
 
+    /**
+     * Relasi ke item permohonan pencairan dana yang bersumber dari item RKA ini.
+     */
+    public function fundRequestItems(): HasMany
+    {
+        return $this->hasMany(FundRequestItem::class, 'rka_item_id');
+    }
+
     /* =========================================================================
      | LOCAL SCOPES
      | ========================================================================= */

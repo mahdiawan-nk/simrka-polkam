@@ -2,18 +2,18 @@
 
 namespace App\Filament\Resources\FundRequests\Pages;
 
+use App\Filament\Resources\FundRequests\Concerns\InteractsWithApprovedRkaFundRequest;
 use App\Filament\Resources\FundRequests\FundRequestResource;
-use App\Models\Account;
-use App\Models\Department;
-use App\Models\DepartmentBudget;
-use App\Models\FundRequest;
-use App\Models\RkaSchedule;
 use App\Services\Context\ContextManager;
+use App\Services\FundRequest\FundRequestBudgetService;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Page;
+use InvalidArgumentException;
 
 class CreateFundRequestCustom extends Page
 {
+    use InteractsWithApprovedRkaFundRequest;
+
     protected static string $resource = FundRequestResource::class;
 
     protected string $view = 'filament.resources.fund-requests.pages.create-fund-request-custom';
@@ -38,7 +38,7 @@ class CreateFundRequestCustom extends Page
 
     public ?string $disbursement_type = 'Uang muka (panjar) – dipertanggungjawabkan kemudian';
 
-    // Section B. Rincian Kebutuhan
+    // Section B. Rincian Kebutuhan (berbasis RKA Approved)
     public array $items = [];
 
     // Section D. Pembayaran Kepada
@@ -55,18 +55,12 @@ class CreateFundRequestCustom extends Page
     {
         $this->request_date = now()->format('Y-m-d');
         $this->execution_date = now()->addDays(14)->format('Y-m-d');
-        $this->fiscal_year = RkaSchedule::currentFiscalYear();
 
-        // Default 5 baris kosong rincian kebutuhan
-        for ($i = 0; $i < 5; $i++) {
-            $this->addItemRow();
-        }
-
-        // Set department aktif dari context manager
         $this->setDepartmentsActive();
+        $this->resolveRkaSourceContext();
     }
 
-    public function setDepartmentsActive()
+    public function setDepartmentsActive(): void
     {
         /** @var ContextManager $context */
         $context = app(ContextManager::class);
@@ -78,83 +72,18 @@ class CreateFundRequestCustom extends Page
         }
     }
 
-    public function addItemRow(): void
-    {
-        $this->items[] = [
-            'account_id' => null,
-            'description' => '',
-            'volume' => 1,
-            'unit' => 'Unit',
-            'unit_price' => 0,
-            'total_price' => 0,
-        ];
-    }
-
-    public function removeItemRow(int $index): void
-    {
-        unset($this->items[$index]);
-        $this->items = array_values($this->items);
-    }
-
-    public function updatedItems(): void
-    {
-        foreach ($this->items as $index => $item) {
-            $vol = (float) ($item['volume'] ?? 0);
-            $price = (float) ($item['unit_price'] ?? 0);
-            $this->items[$index]['total_price'] = $vol * $price;
-        }
-    }
-
-    public function getTotalRequestedProperty(): float
-    {
-        return array_sum(array_column($this->items, 'total_price'));
-    }
-
-    /**
-     * Hitung Rekapitulasi per Kode Akun secara Realtime (Bagian C)
-     */
-    public function getAccountSummariesProperty(): array
-    {
-        $summaries = [];
-
-        foreach ($this->items as $item) {
-            if (empty($item['account_id'])) {
-                continue;
-            }
-
-            $accountId = $item['account_id'];
-            $totalPrice = (float) ($item['total_price'] ?? 0);
-
-            if (! isset($summaries[$accountId])) {
-                $account = Account::find($accountId);
-
-                // Cari pagu department untuk akun ini
-                $paguAmount = 0;
-                if ($this->department_id) {
-                    $pagu = DepartmentBudget::where('department_id', $this->department_id)
-                        ->where('account_id', $accountId)
-                        ->where('fiscal_year', $this->fiscal_year)
-                        ->first();
-                    $paguAmount = $pagu?->allocated_amount ?? 0;
-                }
-
-                $summaries[$accountId] = [
-                    'account_code' => $account?->code ?? '-',
-                    'account_name' => $account?->name ?? '-',
-                    'note' => $account?->managed_by_note ?? '',
-                    'total_requested' => 0,
-                    'pagu_unit' => $paguAmount,
-                ];
-            }
-
-            $summaries[$accountId]['total_requested'] += $totalPrice;
-        }
-
-        return array_values($summaries);
-    }
-
     public function save(): void
     {
+        if ($this->rkaSourceError !== null || $this->rkaHeaderId === null) {
+            Notification::make()
+                ->title('Sumber RKA Approved Tidak Tersedia')
+                ->body($this->rkaSourceError ?? 'Belum tersedia RKA yang telah disahkan untuk unit Anda pada periode anggaran aktif.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
         $this->validate([
             'document_number' => 'required|string|unique:fund_requests,document_number',
             'request_date' => 'required|date',
@@ -164,40 +93,35 @@ class CreateFundRequestCustom extends Page
             'responsible_person' => 'required|string',
             'recipient_name' => 'required|string',
             'items' => 'required|array|min:1',
-            'items.*.account_id' => 'required|exists:accounts,id',
-            'items.*.description' => 'required|string',
+            'items.*.rka_item_id' => 'required|integer|exists:rka_items,id',
             'items.*.volume' => 'required|numeric|min:0.01',
-            'items.*.unit_price' => 'required|numeric|min:0',
         ]);
 
-        $fundRequest = FundRequest::create([
-            'document_number' => $this->document_number,
-            'request_date' => $this->request_date,
-            'fiscal_year' => $this->fiscal_year,
-            'department_id' => $this->department_id,
-            'activity_name' => $this->activity_name,
-            'execution_date' => $this->execution_date,
-            'responsible_person' => $this->responsible_person,
-            'disbursement_type' => $this->disbursement_type,
-            'recipient_name' => $this->recipient_name,
-            'bank_account_info' => $this->bank_account_info,
-            'attachments' => $this->attachments,
-            'total_requested' => $this->totalRequested,
-            'status' => 'submitted',
-            'created_by' => auth()->id(),
-        ]);
+        try {
+            app(FundRequestBudgetService::class)->createFundRequest(
+                user: auth()->user(),
+                headerData: [
+                    'document_number' => $this->document_number,
+                    'request_date' => $this->request_date,
+                    'department_id' => $this->department_id,
+                    'activity_name' => $this->activity_name,
+                    'execution_date' => $this->execution_date,
+                    'responsible_person' => $this->responsible_person,
+                    'disbursement_type' => $this->disbursement_type,
+                    'recipient_name' => $this->recipient_name,
+                    'bank_account_info' => $this->bank_account_info,
+                    'attachments' => $this->attachments,
+                ],
+                rawItems: $this->items,
+            );
+        } catch (InvalidArgumentException $e) {
+            Notification::make()
+                ->title('Validasi Anggaran Gagal')
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
 
-        foreach ($this->items as $item) {
-            if (! empty($item['account_id']) && ! empty($item['description'])) {
-                $fundRequest->items()->create([
-                    'account_id' => $item['account_id'],
-                    'description' => $item['description'],
-                    'volume' => $item['volume'],
-                    'unit' => $item['unit'],
-                    'unit_price' => $item['unit_price'],
-                    'total_price' => $item['volume'] * $item['unit_price'],
-                ]);
-            }
+            return;
         }
 
         Notification::make()

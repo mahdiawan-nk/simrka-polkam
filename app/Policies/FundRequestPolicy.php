@@ -74,7 +74,8 @@ class FundRequestPolicy
 
     protected function canAccessRecord(AuthUser $authUser, FundRequest $fundRequest): bool
     {
-        if ($authUser->hasAnyRole(['super_admin', 'direktur', 'keuangan', 'wadir_keuangan'])) {
+        if ($authUser->hasAnyRole(['super_admin', 'direktur', 'keuangan', 'wadir_keuangan'])
+            || $authUser->can('ViewAllUnits:FundRequest')) {
             return true;
         }
 

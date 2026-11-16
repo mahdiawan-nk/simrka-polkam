@@ -3,17 +3,19 @@
 namespace App\Filament\Widgets;
 
 use App\Models\FundRequest;
+use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
+use Filament\Actions\Action;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
-use Filament\Actions\Action;
-use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
+
 class WadirPendingApprovalTable extends BaseWidget
 {
     use HasWidgetShield;
+
     protected static ?int $sort = 2;
 
-    protected int | string | array $columnSpan = 'full';
+    protected int|string|array $columnSpan = 'full';
 
     protected static ?string $heading = 'Table Pending Approval Wadir (Antrean Verifikasi Wadir BAKKU)';
 
@@ -23,7 +25,7 @@ class WadirPendingApprovalTable extends BaseWidget
             ->query(
                 FundRequest::query()
                     ->where('status', 'verified_kabakku')
-                    ->with(['department', 'approvals' => fn($q) => $q->where('stage', 'kabakku')->latest()])
+                    ->with(['department', 'approvals' => fn ($q) => $q->where('stage', 'kabakku')->latest()])
                     ->oldest('request_date')
             )
             ->paginated(5)
@@ -57,9 +59,9 @@ class WadirPendingApprovalTable extends BaseWidget
 
                 Tables\Columns\TextColumn::make('approvals')
                     ->label('Catatan Kabakku')
-                    ->formatStateUsing(fn($record) => $record->approvals->first()?->note ?? '-')
+                    ->formatStateUsing(fn ($record) => $record->approvals->first()?->note ?? '-')
                     ->limit(30)
-                    ->tooltip(fn($record) => $record->approvals->first()?->note),
+                    ->tooltip(fn ($record) => $record->approvals->first()?->note),
             ])
             ->actions([
                 Action::make('review')
@@ -67,7 +69,7 @@ class WadirPendingApprovalTable extends BaseWidget
                     ->icon('heroicon-m-pencil-square')
                     ->color('primary')
                     ->button()
-                    ->url(fn(FundRequest $record): string => route('filament.admin.resources.fund-requests.edit', $record)),
+                    ->url(fn (FundRequest $record): string => route('filament.admin.resources.fund-requests.verify', $record)),
             ]);
     }
 }
