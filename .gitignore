@@ -1,10 +1,23 @@
+
+# ==================================================
+# LOGS & SYSTEM FILES
+# ==================================================
 *.log
 .DS_Store
+Thumbs.db
+
+# ==================================================
+# ENVIRONMENT & SENSITIVE FILES
+# ==================================================
 .env
 .env.backup
 .env.production
+/auth.json
+
+# ==================================================
+# IDE & DEVELOPMENT TOOLS
+# ==================================================
 .phpactor.json
-.phpunit.result.cache
 /.codex
 /.cursor/
 /.idea
@@ -12,8 +25,18 @@
 /.phpunit.cache
 /.vscode
 /.zed
-/auth.json
+_ide_helper.php
+.phpunit.result.cache
+
+# ==================================================
+# DEPENDENCIES
+# ==================================================
 /node_modules
+/vendor
+
+# ==================================================
+# BUILD & GENERATED FILES
+# ==================================================
 /public/build
 /public/css/filament
 /public/fonts-manifest.dev.json
@@ -23,22 +46,23 @@
 /public/storage
 /storage/*.key
 /storage/pail
-/vendor
-_ide_helper.php
+
+# ==================================================
+# LOCAL DEVELOPMENT & HOMESTEAD
+# ==================================================
 Homestead.json
 Homestead.yaml
-Thumbs.db
-# Private folders
+
+# ==================================================
+# PRIVATE PROJECT DATA
+# ==================================================
 /data-rka/
 /docs/
 /reports/
 
-# Ignore all Markdown files except root README.md
+# ==================================================
+# MARKDOWN RESTRICTION
+# Hanya README.md di root yang boleh masuk Git
+# ==================================================
 *.md
 !/README.md
-
-# Ignore all root files except README.md and .gitignore
-/*
-!/*/
-!/README.md
-!/.gitignore
