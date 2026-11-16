@@ -107,7 +107,7 @@
                 </tr></thead>
                 <tbody>
                     @forelse ($sectionB as $adj)
-                        @php $sourceUnitName = $adj->targetUnit?->code ?? 'Internal / Pusat'; @endphp
+                        @php $sourceUnitName = $adj->targetUnit?->name ?? '—'; @endphp
                         <tr class="odd:bg-white even:bg-slate-50/70 hover:bg-emerald-50/60 dark:odd:bg-slate-950 dark:even:bg-white/[0.025] dark:hover:bg-emerald-400/5">
                             <td class="{{ $td }} text-center text-slate-400">{{ $loop->iteration }}</td>
                             <td class="{{ $td }} whitespace-nowrap text-center font-mono font-semibold">{{ $adj->account?->code ?? '—' }}</td>

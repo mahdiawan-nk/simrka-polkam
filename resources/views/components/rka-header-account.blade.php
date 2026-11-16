@@ -7,9 +7,21 @@
     // Filter items berdasarkan rka_indicator_id
     $currentItems = $record->items->where('rka_indicator_id', $activeIndicator?->id);
 
-    // Filter status jika $isAllItems bernilai false
+    // Filter status jika $isAllItems bernilai false (Item Final Disahkan)
     if (!$isAllItems) {
-        $currentItems = $currentItems->whereIn('status', ['APPROVED', 'REJECTED_WITH_ADJUSTMENT', 'REJECTED']);
+        $currentItems = $currentItems->filter(function ($item): bool {
+            $status = $item->status ?? 'PENDING';
+            if (in_array($status, ['APPROVED', 'ACCEPTED', 'REDUCED'], true)) {
+                return true;
+            }
+
+            if ($status === 'TRIMMED') {
+                return (float) ($item->approved_volume ?? 0) > 0
+                    || (float) ($item->approved_total ?? 0) > 0;
+            }
+
+            return false;
+        });
     }
 
     $totalUsulan = $currentItems->sum('proposed_total');

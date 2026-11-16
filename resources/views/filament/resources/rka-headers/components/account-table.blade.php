@@ -289,6 +289,11 @@
                                                     'class' =>
                                                         'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-400/20 dark:bg-violet-400/10 dark:text-violet-300',
                                                 ],
+                                                'TRIMMED' => [
+                                                    'label' => 'TRIMMED',
+                                                    'class' =>
+                                                        'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-300',
+                                                ],
                                             ];
 
                                             $itemStatus = $item->status ?? null;
@@ -322,7 +327,7 @@
                                     @if ($isReview)
                                         <td
                                             class="{{ $numberCell }} text-center text-emerald-700 dark:text-emerald-300">
-                                            {{ $item->approved_volume ?? '—' }}</td>
+                                            {{ is_null($item->approved_volume) ? '—' : number_format((float) $item->approved_volume, 0, ',', '.') }}</td>
                                         <td
                                             class="{{ $numberCell }} font-semibold text-emerald-800 dark:text-emerald-300">
                                             {{ number_format($item->approved_total ?? 0, 0, ',', '.') }}</td>

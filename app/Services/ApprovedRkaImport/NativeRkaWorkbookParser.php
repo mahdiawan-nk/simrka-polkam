@@ -831,12 +831,37 @@ class NativeRkaWorkbookParser
                     }
                 }
 
+                // Fallback deterministik: cocokkan kode rekening + uraian + nominal unik pada BELANJA unit pengelola
+                if ($importedItemRef === null && $itemMatchStatus === 'MATCH_NONE' && $colKode !== '' && $colUraian !== '') {
+                    $normDescB = mb_strtolower(preg_replace('/\s+/', ' ', $colUraian) ?? $colUraian);
+                    $matchedByContent = $itemsCollection->filter(function (array $item) use ($colKode, $normDescB, $jumlahUsulan, $jumlahDisetujui): bool {
+                        $itemDesc = mb_strtolower(preg_replace('/\s+/', ' ', (string) $item['uraian_item']) ?? '');
+
+                        return $item['kode_rekening'] === $colKode
+                            && $itemDesc === $normDescB
+                            && (
+                                abs((float) $item['nilai_usulan'] - round($jumlahUsulan, 2)) < 1.0
+                                || abs((float) $item['nilai_disetujui'] - round($jumlahDisetujui, 2)) < 1.0
+                            );
+                    })->values();
+
+                    if ($matchedByContent->count() === 1) {
+                        $importedItemRef = $matchedByContent->first()['source_ref_id'];
+                        $itemMatchStatus = 'MATCH_UNIQUE';
+                        $matchedItemDesc = $matchedByContent->first()['uraian_item'];
+                    } elseif ($matchedByContent->count() > 1) {
+                        $itemMatchStatus = 'MATCH_AMBIGUOUS';
+                    }
+                }
+
+                $actionTypeB = $this->mapSectionBActionType($statusText, $notes);
+
                 $rows[] = [
                     'row_number' => $r,
                     'adj_ref_id' => "NATIVE:ADJ:B:{$seqB}",
                     'original_no' => $colNo,
                     'section' => RkaAdjustment::SECTION_B,
-                    'action_type' => RkaAdjustment::ACTION_SHARED_COST,
+                    'action_type' => $actionTypeB,
                     'status_penyesuaian' => $statusText !== '' ? $statusText : 'SHARED_COST / TAMBAHAN REVIEW',
                     'kode_rekening' => $colKode,
                     'nama_rekening' => $account?->name ?? '-',
@@ -1280,19 +1305,36 @@ class NativeRkaWorkbookParser
     {
         $lower = mb_strtolower($statusText);
 
-        if (str_contains($lower, 'dipindah')) {
+        if (str_contains($lower, 'disesuaikan lalu ditolak') || str_contains($lower, 'rejected_with_adjustment')) {
+            return RkaAdjustment::ACTION_REJECTED_WITH_ADJUSTMENT;
+        }
+        if (str_contains($lower, 'dipindah') || str_contains($lower, 'moved')) {
             return RkaAdjustment::ACTION_MOVED;
         }
-        if (str_contains($lower, 'dianggarkan di tempat lain') || str_contains($lower, 'sudah dianggarkan')) {
+        if (str_contains($lower, 'dianggarkan di tempat lain') || str_contains($lower, 'dianggarkan di unit lain') || str_contains($lower, 'sudah dianggarkan') || str_contains($lower, 'budgeted_elsewhere')) {
             return RkaAdjustment::ACTION_BUDGETED_ELSEWHERE;
         }
-        if (str_contains($lower, 'ditolak')) {
+        if (str_contains($lower, 'ditolak') || str_contains($lower, 'dibatalkan') || str_contains($lower, 'rejected')) {
             return RkaAdjustment::ACTION_REJECTED;
         }
-        if (str_contains($lower, 'dihapus')) {
+        if (str_contains($lower, 'dihapus') || str_contains($lower, 'dipangkas') || str_contains($lower, 'removed')) {
             return RkaAdjustment::ACTION_REMOVED;
         }
 
         return RkaAdjustment::ACTION_PENDING;
+    }
+
+    private function mapSectionBActionType(string $statusText, string $notes): string
+    {
+        $combined = mb_strtolower(trim($statusText.' '.$notes));
+
+        if (str_contains($combined, 'dipindah') || str_contains($combined, 'moved') || str_contains($combined, 'pindahan')) {
+            return RkaAdjustment::ACTION_MOVED;
+        }
+        if (str_contains($combined, 'tambahan reviewer') || str_contains($combined, 'added_by_reviewer')) {
+            return RkaAdjustment::ACTION_ADDED_BY_REVIEWER;
+        }
+
+        return RkaAdjustment::ACTION_SHARED_COST;
     }
 }

@@ -152,7 +152,7 @@ it('imports approved excel into Finance DRAFT RkaHeader, sets pagu_budget from U
         ->and($freshIndicator->activity_name)->toBe('Pengelolaan Infrastruktur TI');
 
     // Item & adjustment masuk ke Draft Header yang dibuka
-    $itemsSum = (float) RkaItem::where('rka_header_id', $freshHeader->id)->sum('total_amount');
+    $itemsSum = (float) RkaItem::where('rka_header_id', $freshHeader->id)->sum('approved_total');
     expect(RkaItem::where('rka_header_id', $freshHeader->id)->count())->toBe(33)
         ->and($itemsSum)->not->toBe(156583000.0)
         ->and(RkaAdjustment::where('rka_header_id', $freshHeader->id)->count())->toBe(10);

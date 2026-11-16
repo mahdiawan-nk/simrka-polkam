@@ -135,7 +135,11 @@ class RkaReviewService
 
         $getItemProposedAmount = function ($item): float {
             $status = $item->status ?? 'PENDING';
-            if (in_array($status, ['APPROVED', 'ACCEPTED', 'REJECTED_WITH_ADJUSTMENT'], true)) {
+            if (in_array($status, ['APPROVED', 'ACCEPTED', 'REDUCED', 'REJECTED_WITH_ADJUSTMENT'], true)) {
+                return (float) $item->proposed_total;
+            }
+
+            if ($status === 'TRIMMED' && ((float) ($item->approved_volume ?? 0) > 0 || (float) ($item->approved_total ?? 0) > 0)) {
                 return (float) $item->proposed_total;
             }
 
@@ -149,7 +153,13 @@ class RkaReviewService
                 return (float) ($item->approved_total ?? 0);
             }
 
-            if (in_array($status, ['APPROVED', 'ACCEPTED'], true)) {
+            if ($status === 'TRIMMED') {
+                return ((float) ($item->approved_volume ?? 0) > 0 || (float) ($item->approved_total ?? 0) > 0)
+                    ? (float) ($item->approved_total ?? 0)
+                    : 0.00;
+            }
+
+            if (in_array($status, ['APPROVED', 'ACCEPTED', 'REDUCED'], true)) {
                 return (float) ($item->approved_total ?? $item->proposed_total);
             }
 
@@ -279,7 +289,14 @@ class RkaReviewService
                 return $item->proposed_total;
             });
 
-            $inReviewItems = $categoryItems->whereIn('status', ['APPROVED', 'REJECTED_WITH_ADJUSTMENT', 'REJECTED']);
+            $inReviewItems = $categoryItems->filter(function ($item): bool {
+                $status = $item->status ?? 'PENDING';
+                if (in_array($status, ['APPROVED', 'ACCEPTED', 'REDUCED', 'REJECTED_WITH_ADJUSTMENT', 'REJECTED'], true)) {
+                    return true;
+                }
+
+                return $status === 'TRIMMED' && ((float) ($item->approved_volume ?? 0) > 0 || (float) ($item->approved_total ?? 0) > 0);
+            });
             $usulanReview = $inReviewItems->sum('proposed_total');
             $approved = $categoryItems->sum('approved_total');
 
@@ -328,7 +345,19 @@ class RkaReviewService
             ->with('account.parent.parent');
 
         if (! $showAllItems) {
-            $itemsQuery->whereIn('status', ['APPROVED', 'REJECTED_WITH_ADJUSTMENT', 'REJECTED']);
+            $itemsQuery->where(function ($query): void {
+                $query->whereIn('status', [
+                    RkaItem::STATUS_APPROVED,
+                    RkaItem::STATUS_ACCEPTED,
+                    RkaItem::STATUS_REDUCED,
+                ])->orWhere(function ($trimmedQuery): void {
+                    $trimmedQuery->where('status', 'TRIMMED')
+                        ->where(function ($approvalQuery): void {
+                            $approvalQuery->where('approved_volume', '>', 0)
+                                ->orWhere('approved_total', '>', 0);
+                        });
+                });
+            });
         }
 
         $items = $itemsQuery->get();

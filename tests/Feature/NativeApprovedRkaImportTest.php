@@ -248,7 +248,7 @@ it('previews and imports real 10_RKA_2026-2027_P3M.xlsx natively', function () {
         ->and((float) $header->pagu_budget)->toBe(496090000.0)
         ->and((float) $header->pagu_budget)->not->toBe((float) $preview['summary']['total_proposed'])
         ->and((float) $header->pagu_budget)->not->toBe((float) $preview['summary']['total_approved'])
-        ->and(RkaItem::where('rka_header_id', $header->id)->count())->toBe(30)
+        ->and(RkaItem::where('rka_header_id', $header->id)->count())->toBe(53)
         ->and(RkaAdjustment::where('rka_header_id', $header->id)->count())->toBe(23);
 
     $p3mAdjs = RkaAdjustment::where('rka_header_id', $header->id)->get();
@@ -313,7 +313,7 @@ it('previews and imports real 19_RKA_2026-2027_Prodi_TIF.xlsx natively and block
         ->and((float) $header->pagu_budget)->toBe(728338000.0)
         ->and((float) $header->pagu_budget)->not->toBe((float) $preview['summary']['total_proposed'])
         ->and((float) $header->pagu_budget)->not->toBe((float) $preview['summary']['total_approved'])
-        ->and(RkaItem::where('rka_header_id', $header->id)->count())->toBe(69)
+        ->and(RkaItem::where('rka_header_id', $header->id)->count())->toBe(106)
         ->and(RkaAdjustment::where('rka_header_id', $header->id)->count())->toBe(37);
 });
 

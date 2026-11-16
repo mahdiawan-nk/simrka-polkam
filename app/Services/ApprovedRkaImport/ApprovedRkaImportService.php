@@ -930,6 +930,7 @@ class ApprovedRkaImportService
 
         $createdCount = 0;
         $skippedCount = 0;
+        $indicatorCache = [];
 
         foreach ($adjustmentRows as $row) {
             $adjRefId = (string) ($row['adj_ref_id'] ?? '');
@@ -939,9 +940,9 @@ class ApprovedRkaImportService
                 continue;
             }
 
-            $payload = $this->buildAdjustmentPayload($header, $row, $itemIdMap);
+            $payload = $this->buildAdjustmentPayload($header, $row, $itemIdMap, $indicatorCache);
             $payload['adjusted_by'] = $user->id;
-            RkaAdjustment::create($payload);
+            $this->upsertIdempotentAdjustment($header, $payload);
             $createdCount++;
 
             if ($adjRefId !== '') {
@@ -1544,7 +1545,7 @@ class ApprovedRkaImportService
             ->get();
 
         foreach ($itemsToDelete as $obsoleteItem) {
-            if ($obsoleteItem->fundRequestItems()->exists()) {
+            if (method_exists($obsoleteItem, 'fundRequestItems') && $obsoleteItem->fundRequestItems()->exists()) {
                 throw new InvalidArgumentException("Item '{$obsoleteItem->description}' (#{$obsoleteItem->id}) tidak dapat dihapus saat import ulang karena sudah memiliki transaksi pengajuan dana.");
             }
             $obsoleteItem->delete();
@@ -1559,9 +1560,75 @@ class ApprovedRkaImportService
      */
     private function persistAdjustments(RkaHeader $header, array $adjustmentRows, array $itemIdMap): void
     {
+        $existingAdjRefs = RkaAdjustment::query()
+            ->where('rka_header_id', $header->id)
+            ->whereNotNull('source_ref_id')
+            ->pluck('source_ref_id')
+            ->all();
+
+        $indicatorCache = [];
+
         foreach ($adjustmentRows as $row) {
-            RkaAdjustment::create($this->buildAdjustmentPayload($header, $row, $itemIdMap));
+            $adjRefId = (string) ($row['adj_ref_id'] ?? '');
+            if ($adjRefId !== '' && in_array($adjRefId, $existingAdjRefs, true)) {
+                continue;
+            }
+
+            $payload = $this->buildAdjustmentPayload($header, $row, $itemIdMap, $indicatorCache);
+            $this->upsertIdempotentAdjustment($header, $payload);
+
+            if ($adjRefId !== '') {
+                $existingAdjRefs[] = $adjRefId;
+            }
         }
+    }
+
+    /**
+     * Simpan atau perbarui adjustment secara idempoten (setara RkaReviewService) dan selaraskan status item asal Section A.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private function upsertIdempotentAdjustment(RkaHeader $header, array $payload): RkaAdjustment
+    {
+        if (! empty($payload['rka_item_id'])) {
+            $adjustment = RkaAdjustment::updateOrCreate(
+                [
+                    'rka_header_id' => $header->id,
+                    'rka_item_id' => $payload['rka_item_id'],
+                    'section_type' => $payload['section_type'],
+                ],
+                $payload
+            );
+        } elseif (! empty($payload['source_ref_id'])) {
+            $adjustment = RkaAdjustment::updateOrCreate(
+                [
+                    'rka_header_id' => $header->id,
+                    'source_ref_id' => $payload['source_ref_id'],
+                    'section_type' => $payload['section_type'],
+                ],
+                $payload
+            );
+        } else {
+            $adjustment = RkaAdjustment::create($payload);
+        }
+
+        // Selaraskan status RkaItem milik unit asal pada Section A tanpa menghapus atau memindahkan kepemilikan item
+        if ($payload['section_type'] === RkaAdjustment::SECTION_A && ! empty($payload['rka_item_id'])) {
+            $originItem = RkaItem::query()
+                ->where('rka_header_id', $header->id)
+                ->find($payload['rka_item_id']);
+
+            if ($originItem && ($originItem->status === RkaItem::STATUS_PENDING || $payload['action_type'] !== RkaAdjustment::ACTION_PENDING)) {
+                $originItem->update([
+                    'status' => $payload['action_type'],
+                    'approved_volume' => 0,
+                    'approved_total' => 0,
+                    'is_trimmed' => true,
+                ]);
+            }
+        }
+
+        return $adjustment;
     }
 
     /**
@@ -1605,9 +1672,10 @@ class ApprovedRkaImportService
     /**
      * @param  array<string, mixed>  $row
      * @param  array<string, int>  $itemIdMap
+     * @param  array<string, RkaIndicator>  $indicatorCache
      * @return array<string, mixed>
      */
-    private function buildAdjustmentPayload(RkaHeader $header, array $row, array $itemIdMap): array
+    private function buildAdjustmentPayload(RkaHeader $header, array $row, array &$itemIdMap, array &$indicatorCache = []): array
     {
         $actionType = $row['action_type'] ?? $row['status_penyesuaian'];
         $rawSection = $row['bagian'] ?? $row['section'] ?? RkaAdjustment::SECTION_A;
@@ -1633,10 +1701,45 @@ class ApprovedRkaImportService
             $notes = $notes !== '' ? "{$prefix} {$notes}" : $prefix;
         }
 
+        // Section A: pastikan item belanja milik unit asal tersedia di rka_items (buat baru jika belum ada dan tidak ambigu)
+        if ($sectionType === RkaAdjustment::SECTION_A && $originItemId === null) {
+            $originItemId = $this->ensureSectionAOriginItemId($header, $row, $actionType, $notes, $itemIdMap, $indicatorCache);
+        } elseif ($sectionType === RkaAdjustment::SECTION_B && $importedItemId === null) {
+            // Section B: hanya tautkan ke item belanja pengelola eksisting (JANGAN pernah membuat RkaItem baru)
+            $foundB = $this->findUniqueExistingItemId($header->id, $row, true);
+            $importedItemId = ($foundB !== null && $foundB > 0) ? $foundB : null;
+        }
+
+        $linkedItemId = $sectionType === RkaAdjustment::SECTION_B
+            ? ($originItemId ?? $importedItemId)
+            : $originItemId;
+
+        $indicatorId = null;
+        if ($sectionType === RkaAdjustment::SECTION_A && $linkedItemId !== null) {
+            $indicatorId = RkaItem::query()
+                ->where('rka_header_id', $header->id)
+                ->where('id', $linkedItemId)
+                ->value('rka_indicator_id');
+        }
+
+        $sectionAZeroStatuses = [
+            RkaAdjustment::ACTION_MOVED,
+            RkaAdjustment::ACTION_BUDGETED_ELSEWHERE,
+            RkaAdjustment::ACTION_REJECTED,
+            RkaAdjustment::ACTION_REJECTED_WITH_ADJUSTMENT,
+            RkaAdjustment::ACTION_REMOVED,
+            RkaAdjustment::ACTION_PENDING,
+        ];
+
+        $approvedAmount = $sectionType === RkaAdjustment::SECTION_A && in_array($actionType, $sectionAZeroStatuses, true)
+            ? 0.0
+            : (float) ($row['jumlah_disetujui'] ?? 0);
+
         return [
             'source_ref_id' => $row['adj_ref_id'],
             'rka_header_id' => $header->id,
-            'rka_item_id' => $originItemId,
+            'rka_indicator_id' => $indicatorId,
+            'rka_item_id' => $linkedItemId,
             'imported_rka_item_id' => $importedItemId,
             'section_type' => $sectionType,
             'section_name' => $sectionType === RkaAdjustment::SECTION_A
@@ -1654,11 +1757,163 @@ class ApprovedRkaImportService
             'unit_symbol' => $row['satuan'],
             'unit_price' => $row['harga_satuan'],
             'proposed_amount' => $row['jumlah_usulan'],
-            'approved_amount' => $actionType === RkaAdjustment::ACTION_PENDING ? 0 : ($row['jumlah_disetujui'] ?? 0),
+            'approved_amount' => $approvedAmount,
             'action_type' => $actionType,
             'notes' => $notes !== '' ? $notes : null,
             'is_imported' => $importedItemId !== null,
         ];
+    }
+
+    /**
+     * Memastikan item Section A memiliki record di rka_items milik RKA unit asal (tanpa duplikasi atau tebakan ambigu).
+     *
+     * @param  array<string, mixed>  $row
+     * @param  array<string, int>  $itemIdMap
+     * @param  array<string, RkaIndicator>  $indicatorCache
+     */
+    private function ensureSectionAOriginItemId(
+        RkaHeader $header,
+        array $row,
+        string $actionType,
+        string $notes,
+        array &$itemIdMap,
+        array &$indicatorCache,
+    ): ?int {
+        $adjRef = (string) ($row['adj_ref_id'] ?? '');
+        if ($adjRef !== '') {
+            if (isset($itemIdMap[$adjRef])) {
+                return $itemIdMap[$adjRef];
+            }
+
+            $byAdjRef = RkaItem::query()
+                ->where('rka_header_id', $header->id)
+                ->where('source_ref_id', $adjRef)
+                ->first();
+
+            if ($byAdjRef) {
+                $itemIdMap[$adjRef] = $byAdjRef->id;
+
+                return $byAdjRef->id;
+            }
+        }
+
+        if (($row['item_match_status'] ?? null) === 'MATCH_AMBIGUOUS') {
+            return null;
+        }
+
+        $existingMatch = $this->findUniqueExistingItemId($header->id, $row, false);
+        if ($existingMatch === -1) {
+            // Ambigu (>1 kandidat di DB): jangan pilih acak dan jangan buat duplikat
+            return null;
+        }
+        if ($existingMatch !== null) {
+            return $existingMatch;
+        }
+
+        $accountId = $row['account_id'] ?? null;
+        $uraian = trim((string) ($row['uraian'] ?? ''));
+        if ($accountId === null || $uraian === '') {
+            return null;
+        }
+
+        $kodeRekening = (string) ($row['kode_rekening'] ?? '');
+        $formType = $this->extractFormType('', $kodeRekening);
+        $indicator = $this->resolveIndicatorForSectionAItem($header, $formType, (int) $accountId, $indicatorCache);
+
+        $volume = (float) ($row['volume'] ?? 1);
+        $unitPrice = (float) ($row['harga_satuan'] ?? 0);
+        $unitSymbol = trim((string) ($row['satuan'] ?? ''));
+
+        $item = RkaItem::create([
+            'source_ref_id' => $adjRef !== '' ? $adjRef : null,
+            'rka_header_id' => $header->id,
+            'rka_indicator_id' => $indicator->id,
+            'account_id' => $accountId,
+            'form_type' => $formType,
+            'description' => $uraian,
+            'group_header' => null,
+            'proposed_volume' => $volume > 0 ? $volume : 1.0,
+            'unit_symbol' => $unitSymbol !== '' ? $unitSymbol : 'Unit',
+            'unit_price' => $unitPrice,
+            'approved_volume' => 0,
+            'approved_total' => 0,
+            'status' => $actionType,
+            'is_trimmed' => true,
+            'is_imported' => false,
+            'review_notes' => $notes !== '' ? $notes : null,
+        ]);
+
+        if ($adjRef !== '') {
+            $itemIdMap[$adjRef] = $item->id;
+        }
+
+        return $item->id;
+    }
+
+    /**
+     * @param  array<string, RkaIndicator>  $indicatorCache
+     */
+    private function resolveIndicatorForSectionAItem(
+        RkaHeader $header,
+        string $formType,
+        int $accountId,
+        array &$indicatorCache,
+    ): RkaIndicator {
+        $existingIndicators = $header->indicators()->with('account')->get();
+        if ($existingIndicators->isNotEmpty()) {
+            return $existingIndicators->first(fn (RkaIndicator $ind): bool => $ind->account?->code === $formType)
+                ?? $existingIndicators->first();
+        }
+
+        return $this->resolveOrCreateIndicator($header, [
+            'kelompok_belanja' => '',
+            'kode_rekening' => $formType,
+            'program_kegiatan' => $formType,
+            'account_id' => $accountId,
+        ], $indicatorCache);
+    }
+
+    /**
+     * Pencocokan deterministik unik ke RkaItem eksisting di header target (-1 jika ambigu >1 kandidat).
+     *
+     * @param  array<string, mixed>  $row
+     */
+    private function findUniqueExistingItemId(int $headerId, array $row, bool $allowApprovedTotalMatch): ?int
+    {
+        $accountId = $row['account_id'] ?? null;
+        $uraian = trim((string) ($row['uraian'] ?? ''));
+
+        if ($accountId === null || $uraian === '') {
+            return null;
+        }
+
+        $normDesc = mb_strtolower(preg_replace('/\s+/', ' ', $uraian) ?? $uraian);
+        $usulan = round((float) ($row['jumlah_usulan'] ?? 0), 2);
+        $disetujui = round((float) ($row['jumlah_disetujui'] ?? 0), 2);
+
+        $matches = RkaItem::query()
+            ->where('rka_header_id', $headerId)
+            ->where('account_id', $accountId)
+            ->get(['id', 'description', 'proposed_total', 'approved_total'])
+            ->filter(function (RkaItem $item) use ($normDesc, $usulan, $disetujui, $allowApprovedTotalMatch): bool {
+                $itemDesc = mb_strtolower(preg_replace('/\s+/', ' ', (string) $item->description) ?? '');
+                if ($itemDesc !== $normDesc) {
+                    return false;
+                }
+
+                if (abs((float) $item->proposed_total - $usulan) < 1.0) {
+                    return true;
+                }
+
+                return $allowApprovedTotalMatch && abs((float) ($item->approved_total ?? 0) - $disetujui) < 1.0;
+            })
+            ->values();
+
+        if ($matches->count() > 1) {
+            return -1;
+        }
+
+        return $matches->count() === 1 ? $matches->first()->id : null;
     }
 
     /**
