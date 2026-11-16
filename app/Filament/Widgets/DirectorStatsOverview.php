@@ -53,7 +53,7 @@ class DirectorStatsOverview extends BaseWidget
                 ->descriptionIcon('heroicon-m-chart-bar-square')
                 ->color($absorptionRate > 85 ? 'success' : ($absorptionRate > 60 ? 'warning' : 'danger')),
 
-            Stat::make('Menunggu Approval Direktur', $pendingDirectorApproval.' Dokumen')
+            Stat::make('Menunggu Persetujuan Direktur', $pendingDirectorApproval.' Dokumen')
                 ->description('Pengajuan Tahap Final')
                 ->descriptionIcon('heroicon-m-document-check')
                 ->color($pendingDirectorApproval > 0 ? 'warning' : 'gray'),

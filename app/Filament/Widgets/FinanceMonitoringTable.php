@@ -92,7 +92,7 @@ class FinanceMonitoringTable extends BaseWidget
             ])
             ->actions([
                 Action::make('view')
-                    ->label('Lihat')
+                    ->label('Lihat Detail')
                     ->icon('heroicon-m-eye')
                     ->color('gray')
                     ->visible(fn (FundRequest $record): bool => (bool) Auth::user()?->can('view', $record))

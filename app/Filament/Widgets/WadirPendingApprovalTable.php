@@ -17,7 +17,7 @@ class WadirPendingApprovalTable extends BaseWidget
 
     protected int|string|array $columnSpan = 'full';
 
-    protected static ?string $heading = 'Table Pending Approval Wadir (Antrean Verifikasi Wadir BAKKU)';
+    protected static ?string $heading = 'Antrean Persetujuan Wadir BAKKU';
 
     public function table(Table $table): Table
     {

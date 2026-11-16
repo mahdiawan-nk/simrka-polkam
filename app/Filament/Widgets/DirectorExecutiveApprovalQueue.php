@@ -17,7 +17,7 @@ class DirectorExecutiveApprovalQueue extends BaseWidget
 
     protected int|string|array $columnSpan = 'full';
 
-    protected static ?string $heading = 'Executive Approval Queue (Antrean Persetujuan Direktur)';
+    protected static ?string $heading = 'Antrean Persetujuan Direktur';
 
     public function table(Table $table): Table
     {

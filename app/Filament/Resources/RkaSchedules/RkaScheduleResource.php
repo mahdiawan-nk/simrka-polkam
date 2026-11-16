@@ -25,6 +25,10 @@ class RkaScheduleResource extends Resource
 
     protected static ?string $navigationLabel = 'Jadwal Pengusulan RKA';
 
+    protected static ?string $modelLabel = 'Jadwal Pengusulan RKA';
+
+    protected static ?string $pluralModelLabel = 'Jadwal Pengusulan RKA';
+
     public static function form(Schema $schema): Schema
     {
         return RkaScheduleForm::configure($schema);

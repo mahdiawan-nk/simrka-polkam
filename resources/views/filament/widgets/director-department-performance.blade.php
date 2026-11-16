@@ -1,14 +1,14 @@
 <x-filament-widgets::widget>
     <x-filament::section>
         <x-slot name="heading">
-            Performa Penyerapan Anggaran Departemen (Top 5 & Lowest 5)
+            Performa Penyerapan Anggaran Unit (5 Tertinggi &amp; 5 Terendah)
         </x-slot>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <!-- Top 5 Penyerapan Terbesar -->
             <div class="space-y-3">
                 <h4 class="text-xs font-bold uppercase tracking-wider text-brand-accent flex items-center gap-1">
-                    <x-heroicon-m-arrow-trending-up class="w-4 h-4" /> Top 5 Penyerapan Tertinggi
+                    <x-heroicon-m-arrow-trending-up class="w-4 h-4" /> 5 Unit Penyerapan Tertinggi
                 </h4>
                 <div class="space-y-2">
                     @foreach($top5 as $item)
@@ -28,7 +28,7 @@
             <!-- Bottom 5 Penyerapan Terkecil -->
             <div class="space-y-3">
                 <h4 class="text-xs font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400 flex items-center gap-1">
-                    <x-heroicon-m-arrow-trending-down class="w-4 h-4" /> Top 5 Penyerapan Terendah
+                    <x-heroicon-m-arrow-trending-down class="w-4 h-4" /> 5 Unit Penyerapan Terendah
                 </h4>
                 <div class="space-y-2">
                     @foreach($bottom5 as $item)

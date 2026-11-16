@@ -18,7 +18,7 @@ class DepartmentTrackingTable extends BaseWidget
 
     protected int|string|array $columnSpan = 'full';
 
-    protected static ?string $heading = 'Tracking Pengajuan Dana Terakhir';
+    protected static ?string $heading = 'Pelacakan Pengajuan Dana Terakhir';
 
     public function table(Table $table): Table
     {
@@ -65,7 +65,7 @@ class DepartmentTrackingTable extends BaseWidget
                     ->fontFamily('mono'),
 
                 Tables\Columns\TextColumn::make('status')
-                    ->label('Status Timeline')
+                    ->label('Status Pengajuan')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
                         'draft' => 'gray',
@@ -77,17 +77,17 @@ class DepartmentTrackingTable extends BaseWidget
                     })
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'draft' => 'Draft',
-                        'submitted' => 'Submitted',
-                        'verified_kabakku' => 'Verifikasi KABAKKU',
-                        'verified_wadir_bakku' => 'Verifikasi WADIR',
-                        'approved' => 'Approved',
-                        'rejected' => 'Rejected',
+                        'submitted' => 'Diajukan',
+                        'verified_kabakku' => 'Terverifikasi Keuangan',
+                        'verified_wadir_bakku' => 'Disetujui Wadir II',
+                        'approved' => 'Disetujui',
+                        'rejected' => 'Ditolak',
                         default => $state,
                     }),
             ])
             ->actions([
                 Action::make('view')
-                    ->label('Detail')
+                    ->label('Lihat Detail')
                     ->icon('heroicon-m-eye')
                     ->color('gray')
                     ->url(fn (FundRequest $record): string => route('filament.admin.resources.fund-requests.view', $record)),

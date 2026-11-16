@@ -13,7 +13,7 @@ class WadirMonthlyDisbursementTrendChart extends ChartWidget
 {
     use HasWidgetShield;
 
-    protected ?string $heading = 'Monthly Disbursement Trend (Tren Pencairan Dana Bulanan)';
+    protected ?string $heading = 'Tren Pencairan Dana Bulanan';
 
     protected static ?int $sort = 4;
 

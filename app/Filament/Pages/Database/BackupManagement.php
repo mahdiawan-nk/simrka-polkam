@@ -45,7 +45,7 @@ class BackupManagement extends Page implements HasTable
 
     protected static ?string $navigationLabel = 'Backup Database';
 
-    protected static ?string $title = 'Database Backup Management';
+    protected static ?string $title = 'Manajemen Backup Database';
 
     protected static ?string $slug = 'database/backup';
 

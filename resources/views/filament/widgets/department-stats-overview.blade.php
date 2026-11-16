@@ -35,7 +35,7 @@
                 <div
                     class="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
                     <div class="flex items-center justify-between">
-                        <span class="text-xs font-medium text-slate-500 dark:text-slate-400">Terpakai (Approved)</span>
+                        <span class="text-xs font-medium text-slate-500 dark:text-slate-400">Terpakai (Disetujui)</span>
                         <x-heroicon-m-check-circle class="w-5 h-5 text-emerald-700 dark:text-emerald-400" />
                     </div>
                     <div class="mt-2 text-xl font-bold font-mono text-emerald-700 dark:text-emerald-400">
@@ -73,8 +73,7 @@
             <x-filament::section>
                 <div class="space-y-2">
                     <div class="flex justify-between items-center text-xs">
-                        <span class="font-semibold text-gray-700 dark:text-gray-300">Penyerapan Anggaran Unit
-                            (Burn-rate)</span>
+                        <span class="font-semibold text-gray-700 dark:text-gray-300">Tingkat Penyerapan Anggaran Unit</span>
                         <span class="font-mono font-bold text-gray-900 dark:text-white">{{ $burnRate }}%
                             Terpakai</span>
                     </div>

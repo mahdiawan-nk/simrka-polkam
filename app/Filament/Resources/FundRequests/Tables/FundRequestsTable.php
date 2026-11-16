@@ -96,7 +96,7 @@ class FundRequestsTable
                     }),
 
                 TextColumn::make('approvals_count')
-                    ->label('Log Approval')
+                    ->label('Log Persetujuan')
                     ->counts('approvals')
                     ->formatStateUsing(fn ($state) => $state > 0 ? "{$state} Riwayat" : 'Belum Ada')
                     ->badge()
@@ -211,7 +211,7 @@ class FundRequestsTable
             ->recordActions([
                 ViewAction::make()
                     ->url(fn ($record) => FundRequestResource::getUrl('view', ['record' => $record]))
-                    ->label('Lihat')
+                    ->label('Lihat Detail')
                     ->color('info'),
 
                 Action::make('verify')

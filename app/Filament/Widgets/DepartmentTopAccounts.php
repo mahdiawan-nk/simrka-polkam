@@ -17,7 +17,7 @@ class DepartmentTopAccounts extends BaseWidget
 
     protected int|string|array $columnSpan = 'full';
 
-    protected static ?string $heading = 'Breakdown Penyerapan per Kode Akun (Top 5 Accounts)';
+    protected static ?string $heading = 'Rincian Penyerapan per Kode Akun (5 Teratas)';
 
     public function table(Table $table): Table
     {

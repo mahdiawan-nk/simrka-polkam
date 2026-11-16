@@ -27,6 +27,10 @@ class RkaGenerateConfigResource extends Resource
 
     protected static ?string $navigationLabel = 'Konfigurasi Generate RKA';
 
+    protected static ?string $modelLabel = 'Konfigurasi Generate RKA';
+
+    protected static ?string $pluralModelLabel = 'Konfigurasi Generate RKA';
+
     public static function form(Schema $schema): Schema
     {
         return RkaGenerateConfigForm::configure($schema);

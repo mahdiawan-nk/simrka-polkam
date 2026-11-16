@@ -16,11 +16,11 @@ use UnitEnum;
  */
 class CleanDataRkaPage extends Page
 {
-    protected static string|UnitEnum|null $navigationGroup = 'Development Tools';
+    protected static string|UnitEnum|null $navigationGroup = 'Alat Pengembang';
 
-    protected static ?string $navigationLabel = 'Clean Data RKA';
+    protected static ?string $navigationLabel = 'Pembersihan Data RKA';
 
-    protected static ?string $title = 'Development Data Cleanup — Clean Data RKA';
+    protected static ?string $title = 'Pembersihan Data RKA (Pengembangan)';
 
     protected static ?string $slug = 'development/clean-data-rka';
 
@@ -78,14 +78,14 @@ class CleanDataRkaPage extends Page
     {
         return [
             Action::make('previewCleanupAction')
-                ->label('Preview Cleanup')
+                ->label('Pratinjau Pembersihan')
                 ->icon('heroicon-o-eye')
                 ->color('gray')
                 ->visible(fn (): bool => static::canAccess())
                 ->action(fn () => $this->previewCleanup()),
 
             Action::make('executeCleanupAction')
-                ->label('Clean Data RKA')
+                ->label('Bersihkan Data RKA')
                 ->icon('heroicon-o-trash')
                 ->color('danger')
                 ->visible(fn (): bool => static::canAccess())

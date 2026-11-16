@@ -27,6 +27,10 @@ class FundRequestResource extends Resource
 
     protected static ?string $navigationLabel = 'Pengajuan Dana';
 
+    protected static ?string $modelLabel = 'Pengajuan Pencairan Dana';
+
+    protected static ?string $pluralModelLabel = 'Pengajuan Pencairan Dana';
+
     public static function form(Schema $schema): Schema
     {
         return FundRequestForm::configure($schema);

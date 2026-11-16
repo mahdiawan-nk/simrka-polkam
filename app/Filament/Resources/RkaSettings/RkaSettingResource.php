@@ -25,6 +25,10 @@ class RkaSettingResource extends Resource
 
     protected static ?string $navigationLabel = 'Pengaturan RKA';
 
+    protected static ?string $modelLabel = 'Pengaturan RKA';
+
+    protected static ?string $pluralModelLabel = 'Pengaturan RKA';
+
     public static function form(Schema $schema): Schema
     {
         return RkaSettingForm::configure($schema);

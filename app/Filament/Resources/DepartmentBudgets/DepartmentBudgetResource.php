@@ -20,8 +20,15 @@ class DepartmentBudgetResource extends Resource
     protected static ?string $model = DepartmentBudget::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBanknotes;
-    protected static string | UnitEnum | null $navigationGroup = 'Manajemen Anggaran';
+
+    protected static string|UnitEnum|null $navigationGroup = 'Manajemen Anggaran';
+
     protected static ?string $navigationLabel = 'Alokasi Pagu Unit';
+
+    protected static ?string $modelLabel = 'Alokasi Pagu Unit';
+
+    protected static ?string $pluralModelLabel = 'Alokasi Pagu Unit';
+
     public static function form(Schema $schema): Schema
     {
         return DepartmentBudgetForm::configure($schema);

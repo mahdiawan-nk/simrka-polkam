@@ -281,7 +281,7 @@ body,
 
 .fi-header-heading {
     color: var(--text-primary);
-    @apply text-2xl sm:text-3xl font-extrabold tracking-tight flex items-center gap-3 relative;
+    @apply text-xl sm:text-2xl font-bold tracking-tight flex items-center gap-3 relative;
 }
 
 .fi-header-heading::before {
@@ -369,7 +369,7 @@ body,
 .fi-ta-header-cell {
     color: var(--text-secondary);
     border-bottom: 1px solid var(--border);
-    @apply text-[10px] font-bold tracking-wider uppercase px-3.5 py-3 whitespace-nowrap;
+    @apply text-[11px] font-semibold tracking-wider uppercase px-3.5 py-3 whitespace-nowrap;
 }
 
 .fi-ta-table > tbody > tr {
@@ -409,7 +409,7 @@ body,
 
 /* --- 10. SEMANTIC BADGES --- */
 .fi-badge {
-    @apply inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider shadow-none border;
+    @apply inline-flex items-center gap-1 rounded-md px-2.5 py-0.5 text-[11px] font-semibold tracking-normal shadow-none border;
 }
 
 /* --- 11. FORM INPUTS & NUMERIC PRECISION --- */

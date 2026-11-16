@@ -45,7 +45,7 @@ class SuperAdminStatsOverview extends BaseWidget
                 ->color('info'),
 
             Stat::make('Total Realisasi Dana', 'Rp '.number_format($totalApproved, 2, ',', '.'))
-                ->description('Pengajuan Berstatus Approved')
+                ->description('Pengajuan Berstatus Disetujui')
                 ->descriptionIcon('heroicon-m-check-circle')
                 ->color('success'),
 

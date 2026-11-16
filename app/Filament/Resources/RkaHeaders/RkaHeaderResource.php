@@ -28,6 +28,10 @@ class RkaHeaderResource extends Resource
 
     protected static ?string $navigationLabel = 'Pengusulan & Review RKA';
 
+    protected static ?string $modelLabel = 'Dokumen RKA';
+
+    protected static ?string $pluralModelLabel = 'Pengusulan & Review RKA';
+
     public static function form(Schema $schema): Schema
     {
         return RkaHeaderForm::configure($schema);

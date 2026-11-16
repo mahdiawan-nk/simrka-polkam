@@ -53,8 +53,8 @@ class WadirStatsOverview extends BaseWidget
                 ->descriptionIcon('heroicon-m-check-badge')
                 ->color('success'),
 
-            Stat::make('Rata-rata Turnaround Time', $turnaroundText)
-                ->description('Kecepatan proses (Submitted → Approval Wadir)')
+            Stat::make('Rata-rata Waktu Proses', $turnaroundText)
+                ->description('Kecepatan proses (Diajukan → Disetujui Wadir)')
                 ->descriptionIcon('heroicon-m-bolt')
                 ->color('info'),
         ];

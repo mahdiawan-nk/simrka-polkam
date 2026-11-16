@@ -17,7 +17,7 @@ class DirectorFinancialBreakdownMatrix extends BaseWidget
 
     protected int|string|array $columnSpan = 1;
 
-    protected static ?string $heading = 'Finansial Breakdown Matrix (By Account Type)';
+    protected static ?string $heading = 'Matriks Rincian Keuangan (Berdasarkan Jenis Akun)';
 
     public function table(Table $table): Table
     {

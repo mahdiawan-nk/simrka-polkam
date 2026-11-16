@@ -6,7 +6,7 @@
                     Selamat datang, {{ $userName }}
                 </h2>
                 <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                    Workspace: <span class="font-medium text-gray-700 dark:text-gray-200">{{ $roleLabel }}</span>
+                    Peran Aktif: <span class="font-medium text-gray-700 dark:text-gray-200">{{ $roleLabel }}</span>
                     &bull;
                     Unit: <span class="font-medium text-gray-700 dark:text-gray-200">{{ $departmentName }}</span>
                 </p>

@@ -10,7 +10,7 @@ class DirectorFiscalYearDistributionChart extends ChartWidget
 {
     use HasWidgetShield;
 
-    protected ?string $heading = 'Distribution & Comparison by Fiscal Year';
+    protected ?string $heading = 'Distribusi & Perbandingan per Tahun Anggaran';
 
     protected static ?int $sort = 5;
 

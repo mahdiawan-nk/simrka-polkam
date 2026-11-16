@@ -17,7 +17,7 @@ class WadirDepartmentUtilizationTable extends BaseWidget
 
     protected int|string|array $columnSpan = 'full';
 
-    protected static ?string $heading = 'Department Budget Utilization Table (Laporan Penyerapan Anggaran Unit)';
+    protected static ?string $heading = 'Laporan Penyerapan Anggaran Unit';
 
     public function table(Table $table): Table
     {

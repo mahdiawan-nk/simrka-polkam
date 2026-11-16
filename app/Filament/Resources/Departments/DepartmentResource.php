@@ -20,8 +20,15 @@ class DepartmentResource extends Resource
     protected static ?string $model = Department::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBuildingOffice2;
-    protected static string | UnitEnum | null $navigationGroup = 'Master Data';
+
+    protected static string|UnitEnum|null $navigationGroup = 'Master Data';
+
     protected static ?string $navigationLabel = 'Unit / Departemen';
+
+    protected static ?string $modelLabel = 'Unit Kerja';
+
+    protected static ?string $pluralModelLabel = 'Daftar Unit Kerja';
+
     public static function form(Schema $schema): Schema
     {
         return DepartmentForm::configure($schema);

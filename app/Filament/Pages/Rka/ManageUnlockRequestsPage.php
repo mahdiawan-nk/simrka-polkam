@@ -31,7 +31,7 @@ class ManageUnlockRequestsPage extends Page implements HasTable
 
     protected static ?string $navigationLabel = 'Permintaan Buka Kunci RKA';
 
-    protected static ?string $title = 'Permintaan Pembukaan Kunci RKA Approved';
+    protected static ?string $title = 'Permintaan Pembukaan Kunci RKA Disetujui';
 
     protected static ?int $navigationSort = 35;
 

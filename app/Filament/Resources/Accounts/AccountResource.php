@@ -20,8 +20,15 @@ class AccountResource extends Resource
     protected static ?string $model = Account::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCalculator;
-    protected static string | UnitEnum | null $navigationGroup = 'Manajemen Anggaran';
+
+    protected static string|UnitEnum|null $navigationGroup = 'Manajemen Anggaran';
+
     protected static ?string $navigationLabel = 'Kode Akun (COA)';
+
+    protected static ?string $modelLabel = 'Kode Akun';
+
+    protected static ?string $pluralModelLabel = 'Daftar Kode Akun (COA)';
+
     public static function form(Schema $schema): Schema
     {
         return AccountForm::configure($schema);

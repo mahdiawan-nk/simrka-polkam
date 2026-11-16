@@ -17,7 +17,7 @@ class FinanceVerificationQueue extends BaseWidget
 
     protected int|string|array $columnSpan = 'full';
 
-    protected static ?string $heading = 'Priority Action Table (Antrean Verifikasi Keuangan)';
+    protected static ?string $heading = 'Antrean Verifikasi Keuangan';
 
     public function table(Table $table): Table
     {
