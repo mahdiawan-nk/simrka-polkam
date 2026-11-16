@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap');
 @import '../../../../vendor/filament/filament/resources/css/theme.css';
 
 @source '../../../../app/Filament/**/*';
@@ -5,65 +6,104 @@
 @source '../../../../resources/views/components/**/*';
 
 /* ==========================================================================
-   e-RKA PRO - ENTERPRISE BUDGETING SYSTEM THEME
-   Tailwind / Filament v3 Custom CSS (Finance & FinTech Focus)
+   SIMRKA / e-RKA — MODERN ACADEMIC FINANCE DESIGN SYSTEM
+   Filament 5 + Tailwind CSS v4 Centralized Theme & Design Tokens
    ========================================================================== */
 
-/* --- 1. FONTS & NUMERIC DATA PRECISION --- */
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
-
+/* --- 1. CENTRALIZED DESIGN TOKENS --- */
 :root {
     --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-    --font-mono: 'JetBrains Mono', monospace;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+    /* Brand Palette */
+    --brand-primary: #17324D;
+    --brand-secondary: #245B85;
+    --brand-accent: #168C83;
+    --brand-highlight: #C69A45;
+
+    /* Neutral Palette (Light) */
+    --surface: #FFFFFF;
+    --surface-muted: #F8FAFC;
+    --background: #F5F7FA;
+    --border: #DCE3EA;
+
+    --text-primary: #1E293B;
+    --text-secondary: #64748B;
+
+    /* Semantic Palette */
+    --success: #15803D;
+    --warning: #B7791F;
+    --danger: #BE123C;
+    --info: #2563EB;
+    --neutral: #64748B;
+
+    /* Interactive & Surface Accents */
+    --brand-primary-tint: rgba(23, 50, 77, 0.06);
+    --brand-secondary-tint: rgba(36, 91, 133, 0.12);
+    --brand-accent-tint: rgba(22, 140, 131, 0.10);
+    --brand-highlight-tint: rgba(198, 154, 69, 0.14);
 }
 
+.dark {
+    --surface: #111C2E;
+    --surface-muted: #162338;
+    --background: #0B1220;
+    --border: #1E2D45;
+
+    --text-primary: #F1F5F9;
+    --text-secondary: #94A3B8;
+
+    --brand-primary-tint: rgba(36, 91, 133, 0.18);
+    --brand-secondary-tint: rgba(56, 132, 190, 0.20);
+    --brand-accent-tint: rgba(22, 140, 131, 0.18);
+    --brand-highlight-tint: rgba(198, 154, 69, 0.18);
+}
+
+/* Tailwind CSS v4 Theme Token Bridge */
+@theme {
+    --color-brand-primary: #17324D;
+    --color-brand-secondary: #245B85;
+    --color-brand-accent: #168C83;
+    --color-brand-highlight: #C69A45;
+    --color-canvas: #F5F7FA;
+    --color-surface: #FFFFFF;
+    --color-border-soft: #DCE3EA;
+    --color-ink-primary: #1E293B;
+    --color-ink-secondary: #64748B;
+}
+
+/* --- 2. TYPOGRAPHY & NUMERIC PRECISION --- */
 body {
     font-family: var(--font-sans);
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    color: var(--text-primary);
 }
 
-/* Mengatur agar semua format angka finansial (Tabel, Summary, Nominal) selalu sejajar & presisi */
 .font-numeric,
 .fi-ta-numeric-cell,
 .fi-wi-stats-overview-stat-value {
-    font-family: var(--font-mono) !important;
+    font-family: var(--font-mono);
     font-variant-numeric: tabular-nums lining-nums;
     letter-spacing: -0.02em;
 }
 
-/* --- 2. KANVAS & CANVAS BASE --- */
+/* --- 3. CANVAS & BASE --- */
 body,
 .fi-main {
-    background-color: #F1F5F9 !important; /* Soft slate canvas untuk mengurangi kelelahan mata */
-    @apply text-slate-800 transition-colors duration-300;
-
-    .dark & {
-        background-color: #090D16 !important; /* Deep Wallstreet Dark Mode */
-        @apply text-slate-100;
-    }
+    background-color: var(--background);
+    color: var(--text-primary);
+    transition: background-color 200ms ease, color 200ms ease;
 }
 
-/* --- 3. SIDEBAR PANEL (Executive Glass & High Contrast) --- */
+/* --- 4. SIDEBAR PANEL --- */
 .fi-sidebar {
-    background-color: #FFFFFF !important;
-    @apply border-r border-slate-200/90 shadow-[4px_0_24px_rgba(15,23,42,0.03)] transition-all lg:z-20;
+    background-color: var(--surface);
+    border-right: 1px solid var(--border);
+    box-shadow: 2px 0 16px rgba(23, 50, 77, 0.03);
+    transition: background-color 200ms ease, border-color 200ms ease;
 
     .dark & {
-        background-color: #0F172A !important;
-        @apply border-slate-800/80 shadow-none;
-    }
-}
-
-/* Radial Glow di Sudut Kiri Atas Sidebar */
-.fi-sidebar::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(circle at top left, rgba(5, 150, 105, 0.08), transparent 60%);
-    pointer-events: none;
-
-    .dark & {
-        background: radial-gradient(circle at top left, rgba(16, 185, 129, 0.12), transparent 60%);
+        box-shadow: none;
     }
 }
 
@@ -79,75 +119,96 @@ body,
 }
 
 .fi-sidebar-group-label {
-    @apply text-[9px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500 px-3 mt-5 mb-1.5;
+    color: var(--text-secondary);
+    @apply text-[10px] font-bold uppercase tracking-widest px-3 mt-5 mb-1.5;
 }
 
 .fi-sidebar-item-btn {
-    @apply relative flex items-center gap-x-3 rounded-xl px-3.5 py-2.5 transition-all duration-200 text-slate-600 dark:text-slate-300;
+    color: var(--text-secondary);
+    @apply relative flex items-center gap-x-3 rounded-xl px-3.5 py-2.5 transition-colors duration-150;
 
-    &>.fi-icon {
-        @apply text-slate-400 dark:text-slate-500 transition-colors;
+    & > .fi-icon {
+        color: var(--text-secondary);
+        @apply transition-colors;
     }
 
     &:hover {
-        @apply bg-slate-100/80 dark:bg-slate-800/70 text-slate-900 dark:text-white;
+        background-color: var(--brand-primary-tint);
+        color: var(--brand-primary);
 
-        &>.fi-icon {
-            @apply text-emerald-600 dark:text-emerald-400;
+        & > .fi-icon {
+            color: var(--brand-secondary);
+        }
+
+        .dark & {
+            color: var(--text-primary);
+
+            & > .fi-icon {
+                color: #7DB4DF;
+            }
         }
     }
 }
 
 .fi-sidebar-item-label {
-    @apply flex-1 truncate text-xs font-semibold tracking-wide text-slate-600 dark:text-slate-300;
+    @apply flex-1 truncate text-xs font-semibold tracking-wide;
 }
 
-/* State Sidebar Item Aktif (Penanda Menu Anggaran Seimbang) */
-.fi-sidebar-item.fi-active>.fi-sidebar-item-btn {
-    background: linear-gradient(90deg, rgba(5, 150, 105, 0.12) 0%, rgba(5, 150, 105, 0.02) 100%) !important;
-    border: 1px solid rgba(5, 150, 105, 0.25) !important;
-    @apply shadow-sm;
+.fi-sidebar-item.fi-active > .fi-sidebar-item-btn {
+    background-color: var(--brand-primary-tint);
+    border: 1px solid rgba(23, 50, 77, 0.16);
+    color: var(--brand-primary);
 
     .dark & {
-        background: linear-gradient(90deg, rgba(16, 185, 129, 0.18) 0%, rgba(16, 185, 129, 0.03) 100%) !important;
-        border: 1px solid rgba(16, 185, 129, 0.35) !important;
+        border-color: rgba(125, 180, 223, 0.25);
+        color: #E2EEFA;
     }
 }
 
-.fi-sidebar-item.fi-active>.fi-sidebar-item-btn>.fi-icon {
-    @apply text-emerald-600 dark:text-emerald-400;
+.fi-sidebar-item.fi-active > .fi-sidebar-item-btn > .fi-icon {
+    color: var(--brand-primary);
+
+    .dark & {
+        color: #7DB4DF;
+    }
 }
 
-.fi-sidebar-item.fi-active>.fi-sidebar-item-btn>.fi-sidebar-item-label {
-    @apply text-emerald-800 dark:text-emerald-300 font-bold;
+.fi-sidebar-item.fi-active > .fi-sidebar-item-btn > .fi-sidebar-item-label {
+    @apply font-bold;
 }
 
-/* Aksentuasi Safety Orange Indicator (Penanda Aktif) */
-.fi-sidebar-item.fi-active>.fi-sidebar-item-btn::before {
+.fi-sidebar-item.fi-active > .fi-sidebar-item-btn::before {
     content: "";
-    @apply absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3.5px] rounded-r-full;
-    background-color: #F97316;
-    box-shadow: 0 0 10px rgba(249, 115, 22, 0.6);
+    background-color: var(--brand-highlight);
+    @apply absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-r-full;
 }
 
-/* --- 4. TOPBAR COMPONENT STYLING --- */
+/* --- 5. TOPBAR & TOP NAVIGATION --- */
 .fi-topbar-ctn {
     @apply sticky top-0 z-30 overflow-x-clip;
 }
 
 .fi-topbar {
-    @apply relative flex min-h-16 items-center bg-white/90 backdrop-blur-md px-4 shadow-[0_4px_20px_rgba(15,23,42,0.03)] ring-1 ring-slate-900/5 transition-colors duration-200 dark:bg-slate-900/90 dark:ring-white/10 dark:shadow-none;
+    background-color: rgba(255, 255, 255, 0.94);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 2px 12px rgba(23, 50, 77, 0.04);
+    @apply relative flex min-h-16 items-center px-4 backdrop-blur-md transition-colors duration-200;
+
+    .dark & {
+        background-color: rgba(17, 28, 46, 0.94);
+        box-shadow: none;
+    }
 
     & .fi-tenant-menu {
         @apply hidden lg:block;
     }
 }
 
-/* Garis Tipis Tri-Color Financial (Emerald - Teal - Orange) di Topbar */
+/* Subtle institutional accent rule on topbar */
 .fi-topbar::before {
     content: "";
+    background: linear-gradient(90deg, var(--brand-primary) 0%, var(--brand-secondary) 70%, var(--brand-highlight) 100%);
     @apply absolute top-0 left-0 right-0 h-[3px];
-    background: linear-gradient(to right, #059669 0%, #0D9488 50%, #F97316 100%);
 }
 
 .fi-topbar-open-sidebar-btn { @apply mx-0!; }
@@ -159,7 +220,8 @@ body,
     @apply me-6 hidden items-center lg:flex;
 
     & .fi-logo {
-        @apply ms-3 font-extrabold tracking-tight text-slate-900 dark:text-white;
+        color: var(--text-primary);
+        @apply ms-3 font-extrabold tracking-tight;
     }
 }
 
@@ -178,31 +240,59 @@ body,
     @apply ms-4 me-4 hidden items-center gap-x-4 lg:my-2 lg:flex lg:flex-wrap lg:gap-y-1;
 }
 
+.fi-topbar-item.fi-active > .fi-topbar-item-btn {
+    background-color: var(--brand-primary-tint);
+    color: var(--brand-primary);
+
+    & > .fi-icon {
+        color: var(--brand-primary);
+    }
+
+    .dark & {
+        color: #E2EEFA;
+
+        & > .fi-icon {
+            color: #7DB4DF;
+        }
+    }
+}
+
 .fi-topbar-end {
     @apply ms-auto flex items-center gap-x-4;
 }
 
-/* Global Search Input di Topbar */
 .fi-topbar input {
-    @apply bg-slate-100/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all;
+    background-color: var(--surface-muted);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    @apply rounded-xl text-xs font-medium placeholder-slate-400 transition-all;
+
+    &:focus {
+        border-color: var(--brand-secondary);
+        box-shadow: 0 0 0 2px var(--brand-secondary-tint);
+    }
 }
 
-/* --- 5. HEADER PAGE (Judul Halaman & Aksi Anggaran) --- */
+/* --- 6. PAGE HEADER --- */
 .fi-header {
-    @apply flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-5 border-b border-slate-200/80 dark:border-slate-800/80 transition-all duration-300;
+    border-bottom: 1px solid var(--border);
+    @apply flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-5 transition-colors duration-200;
 }
 
 .fi-header-heading {
-    @apply text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-3 relative;
+    color: var(--text-primary);
+    @apply text-2xl sm:text-3xl font-extrabold tracking-tight flex items-center gap-3 relative;
 }
 
 .fi-header-heading::before {
     content: '';
-    @apply inline-block w-1.5 h-7 rounded-full bg-gradient-to-b from-emerald-500 via-teal-500 to-emerald-700 shadow-[0_0_12px_rgba(16,185,129,0.5)] shrink-0;
+    background: linear-gradient(180deg, var(--brand-primary) 0%, var(--brand-accent) 100%);
+    @apply inline-block w-1.5 h-7 rounded-full shrink-0;
 }
 
 .fi-header-subheading {
-    @apply text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium mt-1 pl-4.5;
+    color: var(--text-secondary);
+    @apply text-xs sm:text-sm font-medium mt-1 pl-4.5;
 }
 
 .fi-header-actions-ctn,
@@ -210,172 +300,133 @@ body,
     @apply flex items-center gap-2.5 shrink-0;
 }
 
-/* --- 6. BUTTONS & ACTIONS --- */
+/* --- 7. BUTTONS & ACTIONS --- */
 .fi-ac-btn-action,
 .fi-btn {
-    @apply relative items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all duration-200 shadow-sm active:scale-95 overflow-hidden;
+    @apply relative items-center justify-center gap-2 px-4 py-2 rounded-xl font-semibold text-xs tracking-wide transition-all duration-150 shadow-xs active:scale-[0.99];
 }
 
-/* Primary Button (Financial Emerald Gradient) */
 .fi-btn-primary,
 .fi-ac-btn-action.fi-color-primary {
-    background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
-    @apply text-white border-0 shadow-emerald-600/20 hover:shadow-lg hover:shadow-emerald-600/30 hover:scale-[1.01];
+    background-color: var(--brand-primary);
+    border-color: var(--brand-primary);
+    color: #FFFFFF;
+
+    &:hover {
+        background-color: var(--brand-secondary);
+        border-color: var(--brand-secondary);
+    }
 
     .dark & {
-        background: linear-gradient(135deg, #10B981 0%, #059669 100%) !important;
-        @apply shadow-emerald-950/50 hover:shadow-emerald-500/20;
+        background-color: var(--brand-secondary);
+        border-color: var(--brand-secondary);
+
+        &:hover {
+            background-color: #2E70A3;
+            border-color: #2E70A3;
+        }
     }
 }
 
-/* Efek Shimmer Kilatan Cahaya saat Hover Button */
-.fi-ac-btn-action::after,
-.fi-btn-primary::after {
-    content: '';
-    @apply absolute inset-0 w-1/2 h-full bg-white/20 skew-x-12 -translate-x-full transition-transform duration-1000 ease-in-out pointer-events-none;
-}
-
-.fi-ac-btn-action:hover::after,
-.fi-btn-primary:hover::after {
-    @apply translate-x-[300%];
-}
-
-/* --- 7. CARDS, SECTIONS & STATS WIDGETS --- */
-/* .fi-section, */
+/* --- 8. CARDS, SECTIONS & KPI WIDGETS --- */
+.fi-section,
 .fi-ta-content,
 .fi-wi-stats-overview-stat {
-    background-color: #FFFFFF !important;
-    @apply rounded-2xl border border-slate-200/90 shadow-[0_4px_20px_-4px_rgba(15,23,42,0.03)] transition-all duration-200;
+    background-color: var(--surface);
+    border-color: var(--border);
+    box-shadow: 0 2px 10px -2px rgba(23, 50, 77, 0.04);
+    @apply rounded-2xl border transition-colors duration-200;
 
     .dark & {
-        background-color: #1E293B !important;
-        @apply border-slate-800 shadow-none;
+        box-shadow: none;
     }
 }
 
-/* Styling Khusus Card Ringkasan Finansial (Stats Overview) */
 .fi-wi-stats-overview-stat {
     @apply p-5 relative overflow-hidden;
 }
 
 .fi-wi-stats-overview-stat-label {
-    @apply text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400;
+    color: var(--text-secondary);
+    @apply text-xs font-bold uppercase tracking-wider;
 }
 
 .fi-wi-stats-overview-stat-value {
-    @apply text-2xl font-extrabold text-slate-900 dark:text-white mt-2;
+    color: var(--text-primary);
+    @apply text-2xl font-extrabold mt-2;
 }
 
-/* --- 8. DATA TABLES (Compact SaaS Financial Header) --- */
+/* --- 9. DATA TABLES --- */
 .fi-ta-table {
     @apply w-full table-auto text-start border-separate border-spacing-0;
 }
 
-.fi-ta-table>thead>tr {
-    background-color: #F8FAFC !important;
-    @apply border-b border-slate-200/90;
-
-    .dark & {
-        background-color: rgba(15, 23, 42, 0.9) !important;
-        @apply border-slate-800;
-    }
+.fi-ta-table > thead > tr {
+    background-color: var(--surface-muted);
+    border-bottom: 1px solid var(--border);
 }
 
 .fi-ta-header-cell {
-    @apply text-[10px] font-extrabold tracking-wider uppercase text-slate-500 dark:text-slate-400 px-3.5 py-3 border-b border-slate-200/90 dark:border-slate-800/90 whitespace-nowrap;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+    @apply text-[10px] font-bold tracking-wider uppercase px-3.5 py-3 whitespace-nowrap;
 }
 
-.fi-ta-table>tbody>tr {
-    @apply transition-colors duration-150 border-b border-slate-100 dark:border-slate-800/50;
+.fi-ta-table > tbody > tr {
+    border-bottom: 1px solid var(--border);
+    @apply transition-colors duration-150;
 }
 
-/* Striping Baris Tabel Finansial */
-.fi-ta-table>tbody>tr:nth-child(even) {
-    background-color: rgba(248, 250, 252, 0.6);
+.fi-ta-table > tbody > tr:nth-child(even) {
+    background-color: rgba(245, 247, 250, 0.55);
 
     .dark & {
-        background-color: rgba(30, 41, 59, 0.25);
+        background-color: rgba(22, 35, 56, 0.45);
     }
 }
 
-.fi-ta-table>tbody>tr:hover {
-    background-color: rgba(16, 185, 129, 0.05) !important;
-
-    .dark & {
-        background-color: rgba(16, 185, 129, 0.08) !important;
-    }
+.fi-ta-table > tbody > tr:hover {
+    background-color: var(--brand-primary-tint);
 }
 
-/* Cell Teks & Angka Finansial */
 .fi-ta-cell {
-    @apply text-xs leading-tight font-medium text-slate-700 dark:text-slate-300 border-b border-slate-100 dark:border-slate-800/60 px-3.5 py-2.5;
+    color: var(--text-primary);
+    border-bottom: 1px solid rgba(220, 227, 234, 0.65);
+    @apply text-xs leading-tight font-medium px-3.5 py-2.5;
+
+    .dark & {
+        border-bottom-color: rgba(30, 45, 69, 0.7);
+    }
 }
 
-/* Presisi Angka Anggaran di Sel Tabel */
 .fi-ta-cell-numeric,
 .fi-ta-cell[data-numeric="true"] {
-    font-family: var(--font-mono) !important;
+    font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
-    @apply text-right font-semibold text-slate-900 dark:text-slate-100;
+    color: var(--text-primary);
+    @apply text-right font-semibold;
 }
 
-/* --- 9. BADGES & FINANCIAL STATUS INDICATORS --- */
+/* --- 10. SEMANTIC BADGES --- */
 .fi-badge {
     @apply inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider shadow-none border;
 }
 
-/* Status: Approved / Surplus (Emerald) */
-.fi-color-success,
-.fi-badge-color-success {
-    @apply bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20;
-}
-.fi-color-success .fi-icon,
-.fi-badge-color-success svg {
-    @apply text-emerald-600 dark:text-emerald-400;
-}
-
-/* Status: Draft / Pending (Amber) */
-.fi-color-warning,
-.fi-badge-color-warning {
-    @apply bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20;
-}
-.fi-color-warning .fi-icon,
-.fi-badge-color-warning svg {
-    @apply text-amber-600 dark:text-amber-400;
-}
-
-/* Status: Deficit / Rejected (Rose) */
-.fi-color-danger,
-.fi-badge-color-danger {
-    @apply bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20;
-}
-.fi-color-danger .fi-icon,
-.fi-badge-color-danger svg {
-    @apply text-rose-600 dark:text-rose-400;
-}
-
-/* Status: Info / Realization (Sky/Blue) */
-.fi-color-info,
-.fi-badge-color-info {
-    @apply bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-500/10 dark:text-sky-400 dark:border-sky-500/20;
-}
-.fi-color-info .fi-icon,
-.fi-badge-color-info svg {
-    @apply text-sky-600 dark:text-sky-400;
-}
-/* --- 10. FORM INPUTS & NUMERIC FIELD ENHANCEMENTS --- */
+/* --- 11. FORM INPUTS & NUMERIC PRECISION --- */
 .fi-input-wrp {
-    @apply rounded-xl border-slate-200/90 bg-white shadow-xs transition-all dark:border-slate-700 dark:bg-slate-800/80;
+    background-color: var(--surface);
+    border-color: var(--border);
+    @apply rounded-xl shadow-xs transition-all;
 }
 
 .fi-input-wrp:focus-within {
-    @apply border-emerald-500 ring-2 ring-emerald-500/20 dark:border-emerald-400 dark:ring-emerald-400/20;
+    border-color: var(--brand-secondary);
+    box-shadow: 0 0 0 2px var(--brand-secondary-tint);
 }
 
-/* Input Khusus Nilai Nominal / Currency */
 input[type="number"],
 input[data-currency="true"] {
-    font-family: var(--font-mono) !important;
+    font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
     @apply text-right font-bold;
 }

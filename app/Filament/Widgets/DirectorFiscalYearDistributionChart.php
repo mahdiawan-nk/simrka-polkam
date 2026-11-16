@@ -25,12 +25,12 @@ class DirectorFiscalYearDistributionChart extends ChartWidget
                 [
                     'label' => 'Total Pagu (Rp)',
                     'data' => $rows->pluck('pagu')->all(),
-                    'backgroundColor' => '#6366f1',
+                    'backgroundColor' => '#17324D',
                 ],
                 [
                     'label' => 'Total Disetujui (Rp)',
                     'data' => $rows->pluck('approved')->all(),
-                    'backgroundColor' => '#10b981',
+                    'backgroundColor' => '#168C83',
                 ],
             ],
             'labels' => $rows->pluck('fiscal_year')->all(),

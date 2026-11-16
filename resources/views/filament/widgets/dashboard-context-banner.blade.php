@@ -12,7 +12,7 @@
                 </p>
             </div>
             <div class="flex flex-wrap items-center gap-2 text-xs">
-                <span class="inline-flex items-center rounded-md bg-amber-50 px-2.5 py-1 font-medium text-amber-800 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-400/10 dark:text-amber-300">
+                <span class="inline-flex items-center rounded-md bg-brand-highlight/12 px-2.5 py-1 font-semibold text-brand-primary ring-1 ring-inset ring-brand-highlight/30 dark:bg-brand-highlight/15 dark:text-amber-200">
                     TA {{ $fiscalYear }} &mdash; {{ $phaseName }}
                 </span>
                 <span class="text-gray-400 dark:text-gray-500">

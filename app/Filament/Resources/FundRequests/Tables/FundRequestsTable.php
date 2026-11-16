@@ -80,10 +80,11 @@ class FundRequestsTable
                     ->badge()
                     ->color(fn (string $state): string => match (strtolower($state)) {
                         'draft' => 'gray',
-                        'pending', 'submitted' => 'warning',
-                        'approved' => 'success',
+                        'submitted' => 'info',
+                        'pending', 'verified_kabakku', 'verified_wadir_bakku', 'revision', 'in_review' => 'warning',
+                        'approved', 'paid', 'completed' => 'success',
                         'rejected' => 'danger',
-                        default => 'primary',
+                        default => 'gray',
                     })
                     ->formatStateUsing(fn (string $state): string => match (strtolower($state)) {
                         'draft' => 'Draft',

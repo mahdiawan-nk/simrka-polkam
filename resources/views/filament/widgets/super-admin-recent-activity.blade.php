@@ -28,7 +28,7 @@
                                     {{ $activity['time_formatted'] }}
                                 </td>
                                 <td class="whitespace-nowrap py-2 pr-4">
-                                    <span class="inline-flex rounded px-2 py-0.5 text-xs font-medium {{ $activity['module'] === 'RKA' ? 'bg-blue-50 text-blue-700 dark:bg-blue-400/10 dark:text-blue-300' : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300' }}">
+                                    <span class="inline-flex rounded px-2 py-0.5 text-xs font-semibold {{ $activity['module'] === 'RKA' ? 'bg-brand-primary/10 text-brand-primary dark:bg-brand-secondary/20 dark:text-blue-300' : 'bg-brand-accent/10 text-brand-accent dark:bg-brand-accent/20 dark:text-teal-300' }}">
                                         {{ $activity['module'] }}
                                     </span>
                                 </td>

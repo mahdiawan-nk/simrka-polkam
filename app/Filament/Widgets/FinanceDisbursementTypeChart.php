@@ -42,10 +42,10 @@ class FinanceDisbursementTypeChart extends ChartWidget
                     'label' => 'Jumlah Pengajuan',
                     'data' => $data,
                     'backgroundColor' => [
-                        '#6366f1', // Indigo (Panjar)
-                        '#f59e0b', // Amber (Reimburse)
-                        '#10b981', // Emerald (Langsung)
-                        '#ec4899', // Pink (Lainnya)
+                        '#17324D', // Deep Navy (Panjar)
+                        '#245B85', // Academic Blue (Reimburse)
+                        '#168C83', // Muted Teal (Langsung)
+                        '#C69A45', // Soft Gold (Lainnya)
                     ],
                 ],
             ],

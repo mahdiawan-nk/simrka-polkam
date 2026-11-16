@@ -21,49 +21,49 @@
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <!-- Pagu Anggaran Unit -->
                 <div
-                    class="p-4 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                    class="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
                     <div class="flex items-center justify-between">
-                        <span class="text-xs font-medium text-gray-500">Pagu Anggaran Unit</span>
-                        <x-heroicon-m-banknotes class="w-5 h-5 text-blue-500" />
+                        <span class="text-xs font-medium text-slate-500 dark:text-slate-400">Pagu Anggaran Unit</span>
+                        <x-heroicon-m-banknotes class="w-5 h-5 text-brand-primary dark:text-blue-400" />
                     </div>
-                    <div class="mt-2 text-xl font-bold font-mono text-gray-900 dark:text-white">
+                    <div class="mt-2 text-xl font-bold font-mono text-brand-primary dark:text-white">
                         Rp {{ number_format($allocatedAmount, 2, ',', '.') }}
                     </div>
                 </div>
 
                 <!-- Terpakai (Approved) -->
                 <div
-                    class="p-4 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                    class="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
                     <div class="flex items-center justify-between">
-                        <span class="text-xs font-medium text-gray-500">Terpakai (Approved)</span>
-                        <x-heroicon-m-check-circle class="w-5 h-5 text-emerald-500" />
+                        <span class="text-xs font-medium text-slate-500 dark:text-slate-400">Terpakai (Approved)</span>
+                        <x-heroicon-m-check-circle class="w-5 h-5 text-emerald-700 dark:text-emerald-400" />
                     </div>
-                    <div class="mt-2 text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                    <div class="mt-2 text-xl font-bold font-mono text-emerald-700 dark:text-emerald-400">
                         Rp {{ number_format($approvedAmount, 2, ',', '.') }}
                     </div>
                 </div>
 
                 <!-- Sedang Diproses (Pending) -->
                 <div
-                    class="p-4 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                    class="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
                     <div class="flex items-center justify-between">
-                        <span class="text-xs font-medium text-gray-500">Sedang Diproses</span>
-                        <x-heroicon-m-clock class="w-5 h-5 text-amber-500" />
+                        <span class="text-xs font-medium text-slate-500 dark:text-slate-400">Sedang Diproses</span>
+                        <x-heroicon-m-clock class="w-5 h-5 text-amber-700 dark:text-amber-400" />
                     </div>
-                    <div class="mt-2 text-xl font-bold font-mono text-amber-600 dark:text-amber-400">
+                    <div class="mt-2 text-xl font-bold font-mono text-amber-700 dark:text-amber-400">
                         Rp {{ number_format($pendingAmount, 2, ',', '.') }}
                     </div>
                 </div>
 
                 <!-- Sisa Pagu Terencana -->
                 <div
-                    class="p-4 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                    class="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
                     <div class="flex items-center justify-between">
-                        <span class="text-xs font-medium text-gray-500">Sisa Pagu Terencana</span>
-                        <x-heroicon-m-scale class="w-5 h-5 text-indigo-500" />
+                        <span class="text-xs font-medium text-slate-500 dark:text-slate-400">Sisa Pagu Terencana</span>
+                        <x-heroicon-m-scale class="w-5 h-5 text-brand-accent" />
                     </div>
                     <div
-                        class="mt-2 text-xl font-bold font-mono {{ $plannedRemaining < 0 ? 'text-rose-600' : 'text-gray-900 dark:text-white' }}">
+                        class="mt-2 text-xl font-bold font-mono {{ $plannedRemaining < 0 ? 'text-rose-700 dark:text-rose-400' : 'text-slate-900 dark:text-white' }}">
                         Rp {{ number_format($plannedRemaining, 2, ',', '.') }}
                     </div>
                 </div>
@@ -78,8 +78,8 @@
                         <span class="font-mono font-bold text-gray-900 dark:text-white">{{ $burnRate }}%
                             Terpakai</span>
                     </div>
-                    <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
-                        <div class="h-3 rounded-full transition-all duration-500 {{ $burnRate > 90 ? 'bg-rose-500' : ($burnRate > 75 ? 'bg-amber-500' : 'bg-emerald-500') }}"
+                    <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-3 overflow-hidden">
+                        <div class="h-3 rounded-full transition-all duration-500 {{ $burnRate > 90 ? 'bg-rose-700' : ($burnRate > 75 ? 'bg-amber-600' : 'bg-brand-accent') }}"
                             style="width: {{ min($burnRate, 100) }}%">
                         </div>
                     </div>

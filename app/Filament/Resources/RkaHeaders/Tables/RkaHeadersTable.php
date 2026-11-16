@@ -53,10 +53,11 @@ class RkaHeadersTable
                     ->badge()
                     ->color(fn (string $state): string => match (strtolower($state)) {
                         'draft' => 'gray',
-                        'submitted' => 'warning',
-                        'approved' => 'success',
+                        'submitted' => 'info',
+                        'in_review', 'pending', 'revision', 'revision_required', 'trimmed' => 'warning',
+                        'approved', 'completed' => 'success',
                         'rejected' => 'danger',
-                        default => 'info',
+                        default => 'gray',
                     })
                     ->formatStateUsing(fn (string $state): string => strtoupper($state))
                     ->searchable()

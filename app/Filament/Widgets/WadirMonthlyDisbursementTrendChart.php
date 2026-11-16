@@ -48,8 +48,8 @@ class WadirMonthlyDisbursementTrendChart extends ChartWidget
                 [
                     'label' => 'Realisasi Pencairan (Rp)',
                     'data' => $data,
-                    'borderColor' => '#059669', // Emerald 600
-                    'backgroundColor' => 'rgba(5, 150, 105, 0.1)',
+                    'borderColor' => '#245B85',
+                    'backgroundColor' => 'rgba(36, 91, 133, 0.10)',
                     'fill' => true,
                     'tension' => 0.3,
                 ],

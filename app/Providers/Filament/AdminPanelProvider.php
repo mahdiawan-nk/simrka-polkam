@@ -2,8 +2,9 @@
 
 namespace App\Providers\Filament;
 
-use Filament\Http\Middleware\Authenticate;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
+use Filament\Enums\UserMenuPosition;
+use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
@@ -11,6 +12,8 @@ use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use Filament\Support\Enums\Width;
+use Filament\View\PanelsRenderHook;
 use Filament\Widgets\AccountWidget;
 use Filament\Widgets\FilamentInfoWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
@@ -18,14 +21,8 @@ use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
-use Illuminate\View\Middleware\ShareErrorsFromSession;
-use Filament\Support\Enums\Width;
-use Filament\View\PanelsRenderHook;
 use Illuminate\Support\Facades\Blade;
-use Filament\Enums\UserMenuPosition;
-use Filament\Navigation\NavigationItem;
-use Filament\Support\Icons\Heroicon;
-use App\Filament\Resources\FundRequests\Pages\CreateFundRequestCustom;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 use ShuvroRoy\FilamentSpatieLaravelBackup\FilamentSpatieLaravelBackupPlugin;
 
 class AdminPanelProvider extends PanelProvider
@@ -45,9 +42,17 @@ class AdminPanelProvider extends PanelProvider
             ->sidebarWidth('20rem')
             // ->sidebarCollapsibleOnDesktop()
             ->globalSearch(false)
-            ->brandLogo(fn() => view('filament.logo'))
+            ->brandLogo(fn () => view('filament.logo'))
             ->colors([
-                'primary' => Color::Amber,
+                'primary' => Color::hex('#17324D'),
+                'secondary' => Color::hex('#245B85'),
+                'accent' => Color::hex('#168C83'),
+                'highlight' => Color::hex('#C69A45'),
+                'success' => Color::hex('#15803D'),
+                'warning' => Color::hex('#B7791F'),
+                'danger' => Color::hex('#BE123C'),
+                'info' => Color::hex('#2563EB'),
+                'gray' => Color::Slate,
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
@@ -61,7 +66,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->renderHook(
                 PanelsRenderHook::USER_MENU_BEFORE,
-                fn(): string => Blade::render('@livewire(\'context-switcher\')')
+                fn (): string => Blade::render('@livewire(\'context-switcher\')')
             )
             ->userMenu(position: UserMenuPosition::Topbar)
             ->middleware([

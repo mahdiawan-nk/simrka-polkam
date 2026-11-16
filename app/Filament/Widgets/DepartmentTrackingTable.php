@@ -70,8 +70,7 @@ class DepartmentTrackingTable extends BaseWidget
                     ->color(fn (string $state): string => match ($state) {
                         'draft' => 'gray',
                         'submitted' => 'info',
-                        'verified_kabakku' => 'warning',
-                        'verified_wadir_bakku' => 'amber',
+                        'verified_kabakku', 'verified_wadir_bakku' => 'warning',
                         'approved' => 'success',
                         'rejected' => 'danger',
                         default => 'gray',

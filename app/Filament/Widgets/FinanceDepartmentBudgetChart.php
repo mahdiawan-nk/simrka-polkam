@@ -27,12 +27,12 @@ class FinanceDepartmentBudgetChart extends ChartWidget
                 [
                     'label' => 'Alokasi Pagu (Rp)',
                     'data' => $rows->pluck('pagu')->all(),
-                    'backgroundColor' => '#3b82f6',
+                    'backgroundColor' => '#17324D',
                 ],
                 [
                     'label' => 'Disetujui Final (Rp)',
                     'data' => $rows->pluck('approved')->all(),
-                    'backgroundColor' => '#10b981',
+                    'backgroundColor' => '#168C83',
                 ],
             ],
             'labels' => $rows->pluck('code')->all(),
