@@ -12,6 +12,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (DB::getDriverName() !== 'mysql') {
+            return;
+        }
+
         Schema::table('fund_requests', function (Blueprint $table) {
             // Jika menggunakan MySQL, ubah definisi ENUM agar mendukung status baru
             // Status: draft, submitted, verified_kabakku, verified_wadir_bakku, approved, rejected
@@ -24,6 +28,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (DB::getDriverName() !== 'mysql') {
+            return;
+        }
+
         Schema::table('fund_requests', function (Blueprint $table) {
             DB::statement("ALTER TABLE fund_requests MODIFY COLUMN status ENUM('draft', 'submitted', 'verified_finance', 'approved', 'rejected') DEFAULT 'draft'");
         });

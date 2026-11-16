@@ -49,13 +49,6 @@ class BrandIdentitySettings extends Page implements HasSchemas
      */
     public ?array $data = [];
 
-    public static function canAccess(): bool
-    {
-        $user = Auth::user();
-
-        return (bool) $user?->hasRole('super_admin');
-    }
-
     public function mount(BrandSettingsService $branding): void
     {
         abort_unless(static::canAccess(), 403);

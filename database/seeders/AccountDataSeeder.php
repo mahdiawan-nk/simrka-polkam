@@ -2,14 +2,15 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\Account;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Seeder;
 
 class AccountDataSeeder extends Seeder
 {
     /**
-     * Master Data Kelompok (Level 1) dan Jenis (Level 2) sesuai format RKA
+     * Master Data Kelompok (Level 1) dan Jenis (Level 2) sesuai format RKA.
+     *
+     * @var array<string, array{name: string, level: int, level_label: string, parent: ?string}>
      */
     protected array $parentCategories = [
         // Level 1: Kelompok
@@ -46,28 +47,107 @@ class AccountDataSeeder extends Seeder
         '2.1.1' => ['name' => 'Hutang Jangka Pendek', 'level' => 2, 'level_label' => 'Jenis', 'parent' => '2.1'],
     ];
 
+    /**
+     * Master Data Rincian Akun (Level 3) aktual Politeknik Kampar.
+     *
+     * @var array<string, string>
+     */
+    protected array $detailAccounts = [
+        '2.1.1.03' => 'Pembayaran Hutang Gaji',
+        '5.1.1.01' => 'Gaji Pokok',
+        '5.1.1.02' => 'Tunjangan Istri/Suami',
+        '5.1.1.03' => 'Tunjangan Anak',
+        '5.1.1.04' => 'Tunjangan Golongan',
+        '5.1.1.05' => 'Tunjangan Fungsional',
+        '5.1.1.06' => 'Tunjangan Struktural',
+        '5.1.1.07' => 'Tunjangan Tambahan Penghasilan Pegawai',
+        '5.1.1.08' => 'Tunjangan Beras',
+        '5.1.1.09' => 'Tunjangan Kinerja',
+        '5.1.1.10' => 'Tunjangan Pengelola Keuangan',
+        '5.1.2.01' => 'Honor Pembimbing, Penguji, Pengawas dan Wali',
+        '5.1.2.02' => 'Honor Kegiatan Kepanitiaan',
+        '5.1.2.03' => 'Honor Kegiatan Bisnis',
+        '5.1.3.01' => 'BPJS Kesehatan',
+        '5.1.3.02' => 'BPJS Ketenagakerjaan',
+        '5.1.3.03' => 'Pakaian Dinas',
+        '5.2.1.01' => 'Belanja Alat Tulis Kantor',
+        '5.2.1.02' => 'Belanja Konsumsi (Makanan dan Minuman)',
+        '5.2.1.03' => 'Belanja Rumah Tangga',
+        '5.2.1.04' => 'Belanja Bahan Praktikum',
+        '5.2.1.05' => 'Belanja Bahan Baku Produksi Bisnis',
+        '5.2.1.07' => 'Belanja Spare Part Kendaraan dan Mesin',
+        '5.2.2.01' => 'Belanja Listrik',
+        '5.2.2.02' => 'Belanja Internet',
+        '5.2.2.03' => 'Belanja Komunikasi',
+        '5.2.2.04' => 'Belanja Sistem Informasi',
+        '5.2.2.05' => 'Belanja Jasa Konsultan, Reviewer dan Narasumber',
+        '5.2.3.01' => 'Belanja Pemeliharaan Gedung dan Bangunan',
+        '5.2.3.02' => 'Belanja Pemeliharaan Peralatan dan Mesin',
+        '5.2.3.03' => 'Belanja Pemeliharaan Jaringan',
+        '5.2.3.04' => 'Belanja Pemeliharaan Kendaraan',
+        '5.2.3.05' => 'Belanja Pemeliharaan Peralatan Kantor',
+        '5.2.4.01' => 'Belanja Perjalanan Dinas Dalam Kota Kabupaten',
+        '5.2.4.02' => 'Belanja Perjalanan Dinas Luar Kota Kabupaten',
+        '5.2.4.03' => 'Belanja Perjalanan Dinas Luar Daerah (Luar Provinsi)',
+        '5.2.4.04' => 'Belanja Perjalanan Dinas Luar Negeri',
+        '5.2.5.01' => 'Belanja Kegiatan Akademik',
+        '5.2.5.02' => 'Belanja Kegiatan Kemahasiswaan',
+        '5.2.5.03' => 'Belanja Kegiatan Seminar/Workshop',
+        '5.2.5.04' => 'Belanja Kegiatan Mutu',
+        '5.2.5.05' => 'Belanja Promosi',
+        '5.2.6.01' => 'Belanja Pendidikan Nongelar',
+        '5.2.6.02' => 'Belanja Pendidikan Bergelar',
+        '5.3.1.02' => 'Belanja Modal Gedung dan Bangunan',
+        '5.3.1.03' => 'Belanja Modal Mesin (Peralatan Praktikum)',
+        '5.3.1.04' => 'Belanja Modal Peralatan dan Tools',
+        '5.3.1.05' => 'Belanja Modal Furniture',
+        '5.3.1.06' => 'Belanja Modal Kendaraan',
+        '5.4.1.01' => 'Belanja Hibah Penelitian dan Pengabdian',
+        '5.4.1.02' => 'Belanja Hibah Penghargaan',
+        '5.5.1.01' => 'Pajak Penghasilan Badan',
+        '5.5.1.02' => 'Pajak Kendaraan Bermotor dan KIR',
+    ];
+
     public function run(): void
     {
-        // 1. Buat atau perbarui master akun Kelompok (Level 1) dan Jenis (Level 2)
+        // 1. Pastikan seluruh akun Kelompok (Level 1) dan Jenis (Level 2) tersedia
         foreach ($this->parentCategories as $code => $data) {
-            Account::updateOrCreate(
+            Account::query()->firstOrCreate(
                 ['code' => $code],
                 [
-                    'code_clean'  => str_replace('.', '', $code),
-                    'name'        => $data['name'],
+                    'code_clean' => str_replace('.', '', $code),
+                    'name' => $data['name'],
                     'parent_code' => $data['parent'],
-                    'level'       => $data['level'],
+                    'level' => $data['level'],
                     'level_label' => $data['level_label'],
-                    'is_active'   => true,
+                    'is_active' => true,
                 ]
             );
         }
 
-        // 2. Format dan perbarui data akun Rincian (Level 3) & akun existing lainnya
-        $accounts = DB::table('accounts')->get();
+        // 2. Pastikan seluruh akun Rincian (Level 3) aktual tersedia
+        foreach ($this->detailAccounts as $code => $name) {
+            $segments = explode('.', $code);
+            $parentCode = "{$segments[0]}.{$segments[1]}.{$segments[2]}";
+
+            Account::query()->firstOrCreate(
+                ['code' => $code],
+                [
+                    'code_clean' => str_replace('.', '', $code),
+                    'name' => $name,
+                    'parent_code' => $parentCode,
+                    'level' => 3,
+                    'level_label' => 'Rincian',
+                    'is_active' => true,
+                ]
+            );
+        }
+
+        // 3. Sinkronkan atribut hierarki & hubungkan parent_id (Self-Referencing FK)
+        $accounts = Account::query()->get();
+        $codeToIdMap = $accounts->pluck('id', 'code');
 
         foreach ($accounts as $account) {
-            $clean = str_replace('.', '', $account->code);
             $segments = explode('.', $account->code);
             $segmentCount = count($segments);
 
@@ -75,41 +155,30 @@ class AccountDataSeeder extends Seeder
             $levelLabel = 'Rincian';
             $parentCode = null;
 
-            if ($segmentCount === 2) { // Level 1 (misal: 5.1, 5.2)
+            if ($segmentCount === 2) {
                 $level = 1;
                 $levelLabel = 'Kelompok';
-            } elseif ($segmentCount === 3) { // Level 2 (misal: 5.2.1, 5.2.2)
+            } elseif ($segmentCount === 3) {
                 $level = 2;
                 $levelLabel = 'Jenis';
-                $parentCode = $segments[0] . '.' . $segments[1];
-            } elseif ($segmentCount === 4) { // Level 3 (misal: 5.2.1.03)
+                $parentCode = "{$segments[0]}.{$segments[1]}";
+            } elseif ($segmentCount === 4) {
                 $level = 3;
                 $levelLabel = 'Rincian';
-                $parentCode = $segments[0] . '.' . $segments[1] . '.' . $segments[2];
+                $parentCode = "{$segments[0]}.{$segments[1]}.{$segments[2]}";
             }
 
-            DB::table('accounts')
-                ->where('id', $account->id)
-                ->update([
-                    'code_clean'  => $clean,
-                    'level'       => $level,
-                    'level_label' => $levelLabel,
-                    'parent_code' => $parentCode,
-                ]);
-        }
+            $parentId = $parentCode && isset($codeToIdMap[$parentCode])
+                ? $codeToIdMap[$parentCode]
+                : null;
 
-        // 3. Hubungkan parent_id (Self-Referencing FK) berdasarkan parent_code
-        $updatedAccounts = DB::table('accounts')->get();
-        $codeToIdMap = $updatedAccounts->pluck('id', 'code');
-
-        foreach ($updatedAccounts as $account) {
-            if ($account->parent_code && isset($codeToIdMap[$account->parent_code])) {
-                DB::table('accounts')
-                    ->where('id', $account->id)
-                    ->update([
-                        'parent_id' => $codeToIdMap[$account->parent_code]
-                    ]);
-            }
+            $account->update([
+                'code_clean' => str_replace('.', '', $account->code),
+                'level' => $level,
+                'level_label' => $levelLabel,
+                'parent_code' => $parentCode,
+                'parent_id' => $parentId,
+            ]);
         }
     }
 }

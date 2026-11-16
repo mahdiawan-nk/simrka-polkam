@@ -6,6 +6,7 @@ use App\Filament\Resources\RkaHeaders\RkaHeaderResource;
 use App\Models\RkaUnlockRequest;
 use App\Services\ApprovedRkaImport\RkaUnlockRequestService;
 use BackedEnum;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -23,6 +24,7 @@ use UnitEnum;
 
 class ManageUnlockRequestsPage extends Page implements HasTable
 {
+    use HasPageShield;
     use InteractsWithTable;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedLockOpen;
@@ -36,13 +38,6 @@ class ManageUnlockRequestsPage extends Page implements HasTable
     protected static ?int $navigationSort = 35;
 
     protected string $view = 'filament.pages.rka.manage-unlock-requests-page';
-
-    public static function canAccess(): bool
-    {
-        $user = auth()->user();
-
-        return $user !== null && $user->can('viewAny', RkaUnlockRequest::class);
-    }
 
     public function table(Table $table): Table
     {

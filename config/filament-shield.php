@@ -71,7 +71,7 @@ return [
     'super_admin' => [
         'enabled' => true,
         'name' => 'super_admin',
-        // Handled in AppServiceProvider::boot() so widget permissions are enforced explicitly via Shield.
+        // Handled in AppServiceProvider::boot() so widget and page permissions are enforced explicitly via Shield.
         'define_via_gate' => false,
         'intercept_gate' => 'before',
     ],

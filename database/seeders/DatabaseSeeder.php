@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -11,19 +10,21 @@ class DatabaseSeeder extends Seeder
     use WithoutModelEvents;
 
     /**
-     * Seed the application's database.
+     * Inisialisasi data master, RBAC, akun administrator awal, dan konfigurasi aplikasi.
+     * Aman dijalankan ulang (idempotent) pada database production maupun development.
      */
     public function run(): void
     {
-        // User::factory(10)->create();
-
-        // User::factory()->create([
-        //     'name' => 'Test User',
-        //     'email' => 'test@example.com',
-        // ]);
         $this->call([
-            // Departmentseeder::class,
+            Departmentseeder::class,
             AccountDataSeeder::class,
+            RoleSeeder::class,
+            PermissionSeeder::class,
+            DashboardRbacSeeder::class,
+            DashboardWidgetPermissionSeeder::class,
+            InitialAdminSeeder::class,
+            ApplicationSettingsSeeder::class,
+            KnowledgeCenterSeeder::class,
         ]);
     }
 }

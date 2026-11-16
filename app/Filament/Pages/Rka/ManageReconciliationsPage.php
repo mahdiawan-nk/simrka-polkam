@@ -10,6 +10,7 @@ use App\Models\RkaAdjustmentMatch;
 use App\Models\RkaSchedule;
 use App\Services\Rka\Reconciliation\RkaReconciliationService;
 use BackedEnum;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -28,6 +29,7 @@ use UnitEnum;
 
 class ManageReconciliationsPage extends Page implements HasTable
 {
+    use HasPageShield;
     use InteractsWithTable;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedArrowsRightLeft;
@@ -41,13 +43,6 @@ class ManageReconciliationsPage extends Page implements HasTable
     protected static ?int $navigationSort = 36;
 
     protected string $view = 'filament.pages.rka.manage-reconciliations-page';
-
-    public static function canAccess(): bool
-    {
-        $user = auth()->user();
-
-        return $user !== null && $user->can('monitor', RkaAdjustmentMatch::class);
-    }
 
     protected function getHeaderActions(): array
     {

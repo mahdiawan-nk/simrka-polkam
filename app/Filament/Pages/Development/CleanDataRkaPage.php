@@ -3,6 +3,7 @@
 namespace App\Filament\Pages\Development;
 
 use App\Services\Development\RkaDataCleanupService;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 use Closure;
 use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
@@ -16,6 +17,10 @@ use UnitEnum;
  */
 class CleanDataRkaPage extends Page
 {
+    use HasPageShield {
+        canAccess as protected canAccessPageShield;
+    }
+
     protected static string|UnitEnum|null $navigationGroup = 'Alat Pengembang';
 
     protected static ?string $navigationLabel = 'Pembersihan Data RKA';
@@ -40,12 +45,8 @@ class CleanDataRkaPage extends Page
 
     public static function canAccess(): bool
     {
-        return app(RkaDataCleanupService::class)->isAvailable(auth()->user());
-    }
-
-    public static function shouldRegisterNavigation(): bool
-    {
-        return static::canAccess();
+        return static::canAccessPageShield()
+            && app(RkaDataCleanupService::class)->isAvailable(auth()->user());
     }
 
     public function mount(): void

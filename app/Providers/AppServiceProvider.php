@@ -31,8 +31,8 @@ class AppServiceProvider extends ServiceProvider
                 return null;
             }
 
-            // Widget permissions must be granted explicitly via Filament Shield even for super_admin.
-            if ($this->isShieldWidgetPermission($ability)) {
+            // Widget and Page permissions must be granted explicitly via Filament Shield even for super_admin.
+            if ($this->isExplicitlyEnforcedShieldPermission($ability)) {
                 return null;
             }
 
@@ -40,16 +40,17 @@ class AppServiceProvider extends ServiceProvider
         });
     }
 
-    private function isShieldWidgetPermission(string $ability): bool
+    private function isExplicitlyEnforcedShieldPermission(string $ability): bool
     {
         try {
             $widgets = FilamentShield::getWidgets() ?? [];
+            $pages = FilamentShield::getPages() ?? [];
         } catch (\Throwable) {
             return false;
         }
 
-        foreach ($widgets as $widget) {
-            $permissions = $widget['permissions'] ?? [];
+        foreach (array_merge($widgets, $pages) as $item) {
+            $permissions = $item['permissions'] ?? [];
             if (array_key_exists($ability, $permissions)) {
                 return true;
             }
