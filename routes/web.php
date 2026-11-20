@@ -50,6 +50,6 @@ Route::middleware(['auth'])->group(function () {
                 ->name('knowledge-center.handbook.article');
         });
 });
-Route::get('/', function () {
-    return view('welcome');
-});
+// Route::get('/', function () {
+//     return view('welcome');
+// });
